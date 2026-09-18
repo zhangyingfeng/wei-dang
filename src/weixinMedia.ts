@@ -19,6 +19,22 @@ export function normalizeImageSources(html: string): string {
   });
 }
 
+// Pulls each <img>'s real `src` attribute value out of already-normalized
+// html. The \s before "src=" is load-bearing: WeChat articles imported from
+// elsewhere (e.g. cross-posted from Zhihu) carry extra attributes like
+// data-actualsrc alongside the real src — a bare "src=" substring match
+// (no leading-whitespace anchor) reads that as a match too, and since it
+// sorts later in the tag, a greedy [^>]+ before it grabs THAT value instead
+// of the real src. That real src (the one turndown/final markdown actually
+// uses) then never gets localized/downloaded — confirmed against a real
+// 2015 article that cross-posted from Zhihu this way, where it silently
+// left the true WeChat CDN URL un-downloaded and, because that URL has no
+// file extension (WeChat encodes format in a "?wx_fmt=" query param, not a
+// path extension), later broke Word-doc image embedding downstream.
+export function extractImageUrls(html: string): string[] {
+  return [...html.matchAll(/<img\b[^>]*\ssrc=["']([^"']+)["']/gi)].map((m) => m[1]!);
+}
+
 // TODO: unverified whether mmbiz.qpic.cn actually enforces a Referer check
 // the way Zhihu's image CDN does — sending it defensively since it can't
 // hurt, but it may turn out to be unnecessary.

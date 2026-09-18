@@ -5,7 +5,7 @@ import TurndownService from "turndown";
 import markdownDocx, { Packer } from "markdown-docx";
 import type { DuplicateInfo, ExportControl, ExportOptions, ExportRecord, ListingReport, TaskEvent, WeixinItem } from "./types.js";
 import { MIN_DEDUP_TEXT_LENGTH, contentHash, isoDate, normalizePlainText, safeName, sleep, writeFileAtomic, writeJson } from "./util.js";
-import { downloadImage, normalizeImageSources } from "./weixinMedia.js";
+import { downloadImage, extractImageUrls, normalizeImageSources } from "./weixinMedia.js";
 import { SessionExpiredError, type ContentSource } from "./source/types.js";
 
 // Ported from zhi-dang's Exporter almost unchanged — this layer (Markdown
@@ -46,7 +46,7 @@ export class Exporter {
       if(sessionExpired) continue;
       await waitWhilePaused(control);
       let html:string;
-      try{ html=await source.fetchBody(item); }
+      try{ html=await this.fetchBodyWithRetry(source,item); }
       catch(error){
         if(error instanceof SessionExpiredError){ sessionExpired=true; continue; }
         const message=error instanceof Error?error.message:String(error);
@@ -118,7 +118,7 @@ export class Exporter {
   }
   private async localizeImages(html:string,imageDir:string,itemId:string,extraUrls:string[]=[],onEvent?:(e:TaskEvent)=>void){
     await mkdir(imageDir,{recursive:true}); html=normalizeImageSources(html); const paths=new Map<string,string>(); const failures:ImageFailure[]=[];
-    const urls=[...html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].map(m=>m[1]).concat(extraUrls).filter(u=>/^https?:/.test(u));
+    const urls=extractImageUrls(html).concat(extraUrls).filter(u=>/^https?:/.test(u));
     const uniqueUrls=[...new Set(urls)];
     onEvent?.({type:"images-list",id:itemId,urls:uniqueUrls});
     for(const url of uniqueUrls){
@@ -136,6 +136,24 @@ export class Exporter {
     return {html,paths,failures};
   }
   private async downloadWithRetry(url:string){ let last:unknown; for(let attempt=1;attempt<=3;attempt++){ try{return await downloadImage(url);}catch(error){last=error;if(attempt<3)await sleep(500*2**(attempt-1));} } throw last; }
+  // Confirmed against a real export: the public article page occasionally
+  // fails to return #js_content on the first request (transient — the same
+  // URL refetched moments later returns full content normally), so a single
+  // failed fetch shouldn't immediately count an item as lost. Doesn't retry
+  // SessionExpiredError — that's a definitive state a retry can't fix, and
+  // retrying it would just waste requests before the run gives up correctly.
+  private async fetchBodyWithRetry(source:ContentSource,item:WeixinItem){
+    let last:unknown;
+    for(let attempt=1;attempt<=3;attempt++){
+      try{ return await source.fetchBody(item); }
+      catch(error){
+        if(error instanceof SessionExpiredError) throw error;
+        last=error;
+        if(attempt<3) await sleep(500*2**(attempt-1));
+      }
+    }
+    throw last;
+  }
 }
 
 type ImageFailure={itemId:string;url:string;error:string};

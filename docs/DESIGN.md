@@ -57,10 +57,20 @@
 - **release 打包还没搭**：`tauri.conf.json` 里没有 `externalBin`/`beforeBuildCommand`，`create_main_window` 目前不管 debug/release 都固定指向 `http://127.0.0.1:4417`，也就是说只有 `npm run tauri dev`（连同 `npm run dev` 一起跑）能真正工作；`tauri build` 产出的正式 `.app` 会打开一个连不上任何服务器的空窗口，因为没有知档那样把 Express 编译成 sidecar 二进制一起打包。这是有意暂缓的——先把开发态跑通，打包/签名是后续独立的工作。
 - 图标是占位符（`src-tauri/icons/`，一个用脚本生成的绿色"档"字方块），不是正式视觉设计。
 
+## 第一次真正端到端跑通（2026-09-17）
+
+用户自己跑了 `npm run tauri dev`，手机扫码登录，一路导出到本地文件——**扫码登录 → token 捕获 → 接口 relay → 列表/正文抓取 → Markdown/Word 落盘这条链路整体是通的**：27 篇文章，17 篇成功，10 篇失败（7 篇是账号里真实已删除的文章，被正确识别；3 篇是瞬时网络问题，见下）。这次真实运行暴露了两个此前没测出来的 bug，都已经修：
+
+- **图片提取正则会认错属性，抓到错误的图片链接**：`src/exporter.ts`（`localizeImages`）里用来找 `<img>` 真实 `src` 的正则 `/<img[^>]+src=["']([^"']+)["']/gi` 没有要求 "src=" 前面是空白字符——一篇从知乎搬运过来的老文章，`<img>` 标签里同时有 `src`（公众号 CDN）和 `data-actualsrc`（知乎图床，属性名本身以 "src" 结尾）两个属性，贪婪的 `[^>]+` 抓到了更靠后出现的 `data-actualsrc`，真正被 turndown/最终 markdown 使用的 `src` 反而从未被下载本地化。这个 URL 留在正文里没被替换，后来又因为公众号 CDN 链接不带文件扩展名（格式编码在 `?wx_fmt=jpeg` 查询参数里，不是路径扩展名）导致 `markdown-docx` 生成 Word 时报错 `Cannot get Image extension from mime type: jpg`（控制台刷屏，但因为 `markdown-docx` 自己吞掉了这个异常，`wordFailures` 依然是 0，докx 文件照样生成，只是缺了那几张图）。修法：把正则换成要求前置空白的 `/<img\b[^>]*\ssrc=["']([^"']+)["']/gi`（提取到 `weixinMedia.ts` 的 `extractImageUrls`），并补了用真实标签复现的单元测试。**知档的 `src/exporter.ts` 第 166 行有一模一样的正则，大概率有同样的风险**——已经用 `spawn_task` 记了一条独立任务去核实和修。
+- **正文抓取的瞬时失败**：10 个失败里有 3 个（"为什么信息不是能量？"等）报的是通用的"未能在文章页面中找到正文"错误，但同一个 URL 几分钟后手动重新抓取完全正常——说明是瞬时网络/CDN 抖动，不是页面结构问题。之前 `fetchBody` 只请求一次，一次失败就整项标记为失败。已经参照图片下载已有的重试逻辑，给 `fetchBody` 加了同样的重试（3 次、指数退避），但没有重试 `SessionExpiredError`（那是确定性状态，重试没有意义）。
+- **"点『在访达中显示』进入了别的项目目录"的报告**：核实后是误会，不是代码 bug——导出报告和磁盘上的文件都在正确的 `wei-dang/exports` 下，`zhi-dang/exports` 目录在磁盘上根本不存在。大概率是当时已经开着一个显示旧项目目录的访达窗口，"显示"命令复用了那个窗口，容易看错。
+
+验证过的、可以信任的部分因此又多了一层：这不只是编译通过、静态渲染正确，而是真的有一个账号从登录到落盘全流程跑了一遍，产出了 17 篇 Markdown 归档。
+
 ## 下一步
 
 1. ~~找一个真实公众号，手动登录后台抓包，核对 `src/source/weixin.ts` 里的每一处 TODO。~~ 已完成（2026-09-17），见上面"已用真实账号验证过"。
-2. 补上验证码/风控页面的识别和清晰的错误提示——需要真的触发一次风控才能核实响应形状，这次抓包会话没遇到。
+2. 补上验证码/风控页面的识别和清晰的错误提示——这次真实端到端运行也没有触发风控，`parsePublishPage` 对非 `ret:0` 响应的分类还是猜测。
 3. ~~参考知档 `src-tauri/src/lib.rs` 的登录窗口机制，做一个指向 `mp.weixin.qq.com` 的对应实现。~~ 已完成（2026-09-17），见上面"登录窗口 + Tauri 壳子"。
-4. **真正跑一次端到端**：`npm run tauri dev`，点"开始登录"，手机扫码登录一个真实公众号，确认 `wait_for_login` 能正确从 URL 里拿到 token、`weixin_fetch` relay 能让 `WeixinContentSource.listAll` 真的把内容管理页的接口打通，一路导出到本地 Markdown/Word。这是唯一还没做过的、决定这条链路能不能用的测试。
+4. ~~真正跑一次端到端。~~ 已完成（2026-09-17），见上面"第一次真正端到端跑通"——顺带修了两个真实 bug。
 5. 打包发布：把 Express 编译成 sidecar 二进制（参考知档 `scripts/build-sidecar.sh`），补上 `externalBin`/`beforeBuildCommand`，让 `tauri build` 产出真正能独立运行的 `.app`；换一版正式图标。

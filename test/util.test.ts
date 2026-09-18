@@ -1,12 +1,21 @@
 import test from "node:test"; import assert from "node:assert/strict"; import {mkdtemp, mkdir, writeFile} from "node:fs/promises"; import os from "node:os"; import path from "node:path"; import {safeName,isoDate,assertSafeOutputDir,normalizePlainText,contentHash} from "../src/util.js";
 import { imageFileName } from "../src/exporter.js";
-import { normalizeImageSources } from "../src/weixinMedia.js";
+import { extractImageUrls, normalizeImageSources } from "../src/weixinMedia.js";
 test("safeName removes unsafe filename characters",()=>assert.equal(safeName('a/b:c*?"<>|'),"a_b_c______"));
 test("isoDate converts epoch seconds",()=>assert.equal(isoDate(0),"1970-01-01T00:00:00.000Z"));
 test("different image bytes never share a filename",()=>assert.notEqual(imageFileName(Buffer.from("image-a"),"image/jpeg"),imageFileName(Buffer.from("image-b"),"image/jpeg")));
 test("identical image bytes deduplicate across URLs",()=>assert.equal(imageFileName(Buffer.from("same"),"image/png"),imageFileName(Buffer.from("same"),"image/png; charset=binary")));
 test("lazy image uses the real source instead of the placeholder",()=>assert.equal(normalizeImageSources(`<img src="https://mmbiz.qpic.cn/placeholder.gif" data-src="https://mmbiz.qpic.cn/real.jpg" alt="图">`),`<img src="https://mmbiz.qpic.cn/real.jpg" alt="图">`));
 test("placeholder-only image with no data-src is removed",()=>assert.equal(normalizeImageSources(`<img src="data:image/svg+xml,x">`),""));
+// Regression: a real 2015 article cross-posted from Zhihu carries a
+// data-actualsrc attribute alongside the real src — "src=" appears as a
+// substring of "actualsrc=" too, and a greedy [^>]+ before a bare "src="
+// match grabbed that later occurrence instead of the real src, so the
+// image WeChat/turndown actually renders was never downloaded/localized.
+test("extractImageUrls reads the real src, not a data-actualsrc lookalike",()=>assert.deepEqual(
+  extractImageUrls(`<img src="http://mmbiz.qpic.cn/mmbiz/x/0?wx_fmt=jpeg" data-original="https://pic3.zhimg.com/a_r.jpg" data-actualsrc="https://pic3.zhimg.com/a_b.jpg">`),
+  ["http://mmbiz.qpic.cn/mmbiz/x/0?wx_fmt=jpeg"],
+));
 test("output safety allows a missing directory",async()=>{const base=await mkdtemp(path.join(os.tmpdir(),"archive-test-"));await assert.doesNotReject(assertSafeOutputDir(path.join(base,"new"),[],[]));});
 test("output safety rejects a non-empty directory with no resume marker",async()=>{const base=await mkdtemp(path.join(os.tmpdir(),"archive-test-"));const out=path.join(base,"out");await mkdir(out);await writeFile(path.join(out,"existing.txt"),"x");await assert.rejects(assertSafeOutputDir(out,[],[]),/不像是微档之前创建的归档/);});
 test("output safety allows resuming into a directory that has export-report.json",async()=>{const base=await mkdtemp(path.join(os.tmpdir(),"archive-test-"));const out=path.join(base,"out");await mkdir(out);await writeFile(path.join(out,"export-report.json"),"{}");await writeFile(path.join(out,"index.json"),"{}");await assert.doesNotReject(assertSafeOutputDir(out,[],[]));});
