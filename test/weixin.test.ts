@@ -2,14 +2,17 @@ import test from "node:test"; import assert from "node:assert/strict";
 import { buildListUrl, parsePublishPage, extractJsContent } from "../src/source/weixin.js";
 
 // Field names and query params below are copied from a real captured
-// response/request (2026-09-17), not invented — see docs/DESIGN.md.
+// response/request (2026-09-17), not invented — see docs/DESIGN.md. The
+// token value itself is a placeholder, not the real one that was captured —
+// a real session token has no reason to live in version control even after
+// it's expired.
 test("buildListUrl matches the real admin backend's query shape", () => {
-  const url = new URL(buildListUrl(10, 10, "712336987"));
+  const url = new URL(buildListUrl(10, 10, "test-token"));
   assert.equal(url.pathname, "/cgi-bin/appmsgpublish");
   assert.equal(url.searchParams.get("type"), "101_1_102_103");
   assert.equal(url.searchParams.get("sub_action"), "list_ex");
   assert.equal(url.searchParams.get("begin"), "10");
-  assert.equal(url.searchParams.get("token"), "712336987");
+  assert.equal(url.searchParams.get("token"), "test-token");
   assert.equal(url.searchParams.has("search_field"), false);
 });
 

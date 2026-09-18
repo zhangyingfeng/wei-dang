@@ -13,7 +13,7 @@
 | 绕开微信官方的验证码/风控 | 可能 | **不做**——遇到验证码交给你本人处理 |
 | 数据经过开发者的服务器 | 可能 | **不经过**——本地直连微信后台，本地写文件 |
 
-详见知档的 [DISCLAIMER.md](https://github.com/zhangyingfeng/zhi-dang/blob/main/docs/DISCLAIMER.md) 和 [ACCEPTABLE_USE.md](https://github.com/zhangyingfeng/zhi-dang/blob/main/docs/ACCEPTABLE_USE.md)，微档沿用同样的原则。
+详见 [docs/DISCLAIMER.md](docs/DISCLAIMER.md)、[docs/ACCEPTABLE_USE.md](docs/ACCEPTABLE_USE.md)、[docs/PRIVACY.md](docs/PRIVACY.md)——原则和知档一致，按公众号场景改写成了独立文档。安全问题请看 [docs/SECURITY.md](docs/SECURITY.md)。
 
 这是独立开发的非官方项目，与微信/腾讯不存在隶属、合作、授权或认可关系。
 
