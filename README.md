@@ -1,6 +1,8 @@
-<img src="src-tauri/icons/128x128@2x.png" width="96" alt="微档图标"><br>
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" width="256" alt="微档图标">
+</p>
 
-# 微档
+<h1 align="center">微档</h1>
 
 「微档」，即微信公众号作者归档。这是[知档](https://github.com/zhangyingfeng/zhi-dang)（知乎作者归档工具）在微信公众号场景下的姊妹项目，目标和边界完全一致：**帮助公众号作者把自己账号下已经发布过的文章，安全地保存成本地 Markdown/Word 归档，并继续由作者自己控制**。
 
