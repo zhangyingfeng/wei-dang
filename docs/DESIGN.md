@@ -47,9 +47,20 @@
 - `src/exporter.ts`：从知档的 `Exporter` 迁移，去掉了知乎特有的"回答/文章"两分类和字段命名，改成统一的"文章"，逻辑（Markdown 转换、图片本地化去重、Word 导出、断点续传落盘）没有变。
 - `src/source/types.ts`：`ContentSource` 接口，和知档的形状一致，`QuotaExhaustedError` 换成了语义更贴切的 `SessionExpiredError`（登录态失效，而不是配额用完）。
 
+## 登录窗口 + Tauri 壳子（2026-09-17）
+
+参考知档 `src-tauri/src/lib.rs` 的登录窗口机制，把 `server.ts`/`index.ts`/Tauri 壳子迁移了过来，`npm run tauri dev` 已经能跑起来。和知乎版本的关键区别：
+
+- **登录检测方式不同**。知乎版靠轮询 `/api/v4/me` 接口判断是否登录；公众号没有等价接口，改成读登录窗口当前 URL 里的 `token` 查询参数（只在 URL 匹配 `mp.weixin.qq.com/cgi-bin/home` 时才提取，见 `lib.rs` 的 `current_token`），对应扫码登录成功后地址栏跳到后台首页、带上 `token=` 的那一刻。
+- 微档只有一种登录方式，没有知档的"登录版/密钥版"分支——`Cargo.toml`、`lib.rs`、`server.ts` 都比知档对应文件简单，没有知档那套 `ServerOptions`/`#[cfg(feature = "key")]` 抽象。
+- **验证方式**：`cargo check`、`cargo build`、`tauri build --debug` 都编译通过；用 `tauri build --debug` 产出的 `.app` 实际启动过一次，主窗口（Express 服务的真实页面）渲染正常，"开始登录"按钮、页脚文案都对；受当时的截图工具限制没能截到登录窗口本身渲染 mp.weixin.qq.com 二维码的画面，但地址/加载逻辑和之前用内置浏览器手动验证过的登录流程一致。**没有做过一次真正的扫码登录到导出完成的端到端测试**——这需要真实账号 + 手机扫码，留给下一步。
+- **release 打包还没搭**：`tauri.conf.json` 里没有 `externalBin`/`beforeBuildCommand`，`create_main_window` 目前不管 debug/release 都固定指向 `http://127.0.0.1:4417`，也就是说只有 `npm run tauri dev`（连同 `npm run dev` 一起跑）能真正工作；`tauri build` 产出的正式 `.app` 会打开一个连不上任何服务器的空窗口，因为没有知档那样把 Express 编译成 sidecar 二进制一起打包。这是有意暂缓的——先把开发态跑通，打包/签名是后续独立的工作。
+- 图标是占位符（`src-tauri/icons/`，一个用脚本生成的绿色"档"字方块），不是正式视觉设计。
+
 ## 下一步
 
 1. ~~找一个真实公众号，手动登录后台抓包，核对 `src/source/weixin.ts` 里的每一处 TODO。~~ 已完成（2026-09-17），见上面"已用真实账号验证过"。
 2. 补上验证码/风控页面的识别和清晰的错误提示——需要真的触发一次风控才能核实响应形状，这次抓包会话没遇到。
-3. 参考知档 `src-tauri/src/lib.rs` 的登录窗口机制（`do_zhihu_fetch`/`open_login_window`），做一个指向 `mp.weixin.qq.com` 的对应实现。
-4. 把 `server.ts`/`index.ts`/Tauri 壳子迁移过来，跑通端到端。
+3. ~~参考知档 `src-tauri/src/lib.rs` 的登录窗口机制，做一个指向 `mp.weixin.qq.com` 的对应实现。~~ 已完成（2026-09-17），见上面"登录窗口 + Tauri 壳子"。
+4. **真正跑一次端到端**：`npm run tauri dev`，点"开始登录"，手机扫码登录一个真实公众号，确认 `wait_for_login` 能正确从 URL 里拿到 token、`weixin_fetch` relay 能让 `WeixinContentSource.listAll` 真的把内容管理页的接口打通，一路导出到本地 Markdown/Word。这是唯一还没做过的、决定这条链路能不能用的测试。
+5. 打包发布：把 Express 编译成 sidecar 二进制（参考知档 `scripts/build-sidecar.sh`），补上 `externalBin`/`beforeBuildCommand`，让 `tauri build` 产出真正能独立运行的 `.app`；换一版正式图标。

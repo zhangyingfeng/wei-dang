@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "login-remote",
+  "description": "Minimal IPC access for the embedded public-account login window: only lets the loaded mp.weixin.qq.com page report a fetch result back or close itself, nothing else.",
+  "windows": [
+    "login"
+  ],
+  "remote": {
+    "urls": ["https://mp.weixin.qq.com/*"]
+  },
+  "permissions": [
+    "allow-weixin-fetch-result",
+    "allow-close-login-window"
+  ]
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-resize-main-window"
+description = "Enables the resize_main_window command without any pre-configured scope."
+commands.allow = ["resize_main_window"]
+
+[[permission]]
+identifier = "deny-resize-main-window"
+description = "Denies the resize_main_window command without any pre-configured scope."
+commands.deny = ["resize_main_window"]

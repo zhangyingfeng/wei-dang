@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-close-login-window"
+description = "Enables the close_login_window command without any pre-configured scope."
+commands.allow = ["close_login_window"]
+
+[[permission]]
+identifier = "deny-close-login-window"
+description = "Denies the close_login_window command without any pre-configured scope."
+commands.deny = ["close_login_window"]
