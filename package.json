@@ -1,0 +1,25 @@
+{
+  "name": "wei-dang",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "微档：微信公众号作者归档工具（探索阶段）",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "markdown-docx": "github:zhangyingfeng/markdown-docx#dfcc24b",
+    "turndown": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "@types/turndown": "^5.0.5",
+    "tsx": "^4.20.3",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
+}

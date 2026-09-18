@@ -1,0 +1,16 @@
+import test from "node:test"; import assert from "node:assert/strict"; import {mkdtemp, mkdir, writeFile} from "node:fs/promises"; import os from "node:os"; import path from "node:path"; import {safeName,isoDate,assertSafeOutputDir,normalizePlainText,contentHash} from "../src/util.js";
+import { imageFileName } from "../src/exporter.js";
+import { normalizeImageSources } from "../src/weixinMedia.js";
+test("safeName removes unsafe filename characters",()=>assert.equal(safeName('a/b:c*?"<>|'),"a_b_c______"));
+test("isoDate converts epoch seconds",()=>assert.equal(isoDate(0),"1970-01-01T00:00:00.000Z"));
+test("different image bytes never share a filename",()=>assert.notEqual(imageFileName(Buffer.from("image-a"),"image/jpeg"),imageFileName(Buffer.from("image-b"),"image/jpeg")));
+test("identical image bytes deduplicate across URLs",()=>assert.equal(imageFileName(Buffer.from("same"),"image/png"),imageFileName(Buffer.from("same"),"image/png; charset=binary")));
+test("lazy image uses the real source instead of the placeholder",()=>assert.equal(normalizeImageSources(`<img src="https://mmbiz.qpic.cn/placeholder.gif" data-src="https://mmbiz.qpic.cn/real.jpg" alt="图">`),`<img src="https://mmbiz.qpic.cn/real.jpg" alt="图">`));
+test("placeholder-only image with no data-src is removed",()=>assert.equal(normalizeImageSources(`<img src="data:image/svg+xml,x">`),""));
+test("output safety allows a missing directory",async()=>{const base=await mkdtemp(path.join(os.tmpdir(),"archive-test-"));await assert.doesNotReject(assertSafeOutputDir(path.join(base,"new"),[],[]));});
+test("output safety rejects a non-empty directory with no resume marker",async()=>{const base=await mkdtemp(path.join(os.tmpdir(),"archive-test-"));const out=path.join(base,"out");await mkdir(out);await writeFile(path.join(out,"existing.txt"),"x");await assert.rejects(assertSafeOutputDir(out,[],[]),/不像是微档之前创建的归档/);});
+test("output safety allows resuming into a directory that has export-report.json",async()=>{const base=await mkdtemp(path.join(os.tmpdir(),"archive-test-"));const out=path.join(base,"out");await mkdir(out);await writeFile(path.join(out,"export-report.json"),"{}");await writeFile(path.join(out,"index.json"),"{}");await assert.doesNotReject(assertSafeOutputDir(out,[],[]));});
+test("output safety rejects protected descendants",async()=>{const base=await mkdtemp(path.join(os.tmpdir(),"archive-test-"));await assert.rejects(assertSafeOutputDir(path.join(base,"private","child"),[],[path.join(base,"private")]),/受保护/);});
+test("normalizePlainText strips tags and collapses whitespace",()=>assert.equal(normalizePlainText("<p>你好\n\n<b>世界</b></p>  <p>再见</p>"),"你好 世界 再见"));
+test("contentHash matches across different markup for the same visible text",()=>assert.equal(contentHash("<p>同一段内容</p>"),contentHash("<div><span>同一段内容</span></div>")));
+test("contentHash differs for different visible text",()=>assert.notEqual(contentHash("<p>内容甲</p>"),contentHash("<p>内容乙</p>")));
