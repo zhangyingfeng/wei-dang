@@ -73,10 +73,22 @@
 
 改法：`fetchBody` 检测到删除标记时抛一个专门的 `DeletedContentError`（`source/types.ts`），和 `SessionExpiredError` 同级——`Exporter.export` 给它一个独立的 `"deleted"` 任务状态，不重试，记进 `export-report.json` 的新字段 `deletedItems`；`server.ts` 下次读这个文件时把这些 id 灌进 `ExportControl.deletedItemIds`，循环一开始就跳过，连 `fetchBody` 都不调用。前端加了个灰色"已删除"徽章，和"跳过"共用暗淡+删除线的视觉处理。补了两个针对 `Exporter` 的单元测试（`test/exporter.test.ts`）。用户复测确认：第一次重新导出时那 7 篇按预期又请求了一次（旧的 `export-report.json` 没有 `deletedItems` 字段，这次补上），此后应该会被跳过——功能已验证通过。
 
+## 打包发布（2026-09-18）
+
+参考知档的 `scripts/build-sidecar.sh`，把 Express 服务端用 Bun 编译成单文件可执行程序（`weidang-server`），作为 Tauri sidecar 一起打包，这样正式发布的 `.app` 不依赖用户机器上装了 Node。和知档的版本相比更简单——没有"登录版/密钥版"分支，只有一个入口文件（`src/index.ts`），脚本不需要 edition 参数。
+
+- `tauri.conf.json` 加了 `beforeBuildCommand: "npm run build:sidecar"`、`bundle.externalBin`、`bundle.resources`（打包 `public/` 目录）。
+- `lib.rs` 加回了 `SidecarProcess`/`spawn_backend_sidecar`/`kill_backend_sidecar`（之前为了先跑通开发态特意去掉的），`run()` 现在按 `cfg!(debug_assertions)` 分支：开发态（`tauri dev`）沿用外部已经在跑的 Express；非开发态自己拉起 sidecar。
+- katex 桩（`scripts/katex-stub.mjs`）沿用了知档的做法：`markdown-docx`（两个项目用的是同一个 fork、同一个 commit）无条件 `import` 了 katex，但只有调用方显式传 `math.engine === "katex"` 才会真的调用它——`writeWordDoc` 从来没传过这个选项，这条路径本来就走不到，桩件纯粹是为了打包时不用背上 katex 的体积。
+- **有一个容易踩的坑**：`tauri build --debug` 用的也是 `dev` cargo profile，`cfg!(debug_assertions)` 在这种"debug 包"里同样是 `true`——意味着 `--debug` 打出来的 `.app` 依然认为有外部 Express 在跑，不会拉起 sidecar，窗口会是空白的。这不是 bug，是和知档一致的既有行为（`--debug` 只是用来快速验证打包机制本身，不代表可独立运行）；真正验证"打包出的 `.app` 能不能独立跑起来"，必须用不带 `--debug` 的正式 `tauri build`（release 优化编译，慢很多）。
+- **验证方式**：跑了一次真正的 `tauri build`（非 debug），在完全没有 `npm run dev`/`npm run tauri dev` 跑着的干净环境下直接 `open` 产出的 `.app`——sidecar 正确拉起、监听 4417，主窗口渲染正常；退出 app 之后 sidecar 进程也正确一起退出（`kill_backend_sidecar`），没有残留进程占用端口。这是第一次验证"打包出来的 `.app` 能不能真的脱离开发环境独立运行"，结果是可以。
+- 图标仍是占位符，真正的代码签名（`macOS.signingIdentity`）也还没配——sidecar 只做了本机 ad-hoc 签名（`codesign --sign -`），不是能公开分发、通过 Gatekeeper 校验的签名，正式对外发布前还需要一个 Developer ID。
+
 ## 下一步
 
 1. ~~找一个真实公众号，手动登录后台抓包，核对 `src/source/weixin.ts` 里的每一处 TODO。~~ 已完成（2026-09-17），见上面"已用真实账号验证过"。
 2. 补上验证码/风控页面的识别和清晰的错误提示——这次真实端到端运行也没有触发风控，`parsePublishPage` 对非 `ret:0` 响应的分类还是猜测。
 3. ~~参考知档 `src-tauri/src/lib.rs` 的登录窗口机制，做一个指向 `mp.weixin.qq.com` 的对应实现。~~ 已完成（2026-09-17），见上面"登录窗口 + Tauri 壳子"。
 4. ~~真正跑一次端到端。~~ 已完成（2026-09-17），见上面"第一次真正端到端跑通"——顺带修了两个真实 bug。
-5. 打包发布：把 Express 编译成 sidecar 二进制（参考知档 `scripts/build-sidecar.sh`），补上 `externalBin`/`beforeBuildCommand`，让 `tauri build` 产出真正能独立运行的 `.app`；换一版正式图标。
+5. ~~打包发布：把 Express 编译成 sidecar 二进制，让 `tauri build` 产出真正能独立运行的 `.app`。~~ 已完成（2026-09-18），见上面"打包发布"。
+6. 换一版正式图标；配一个真正的 Developer ID 签名（对外分发前必须做，否则用户打开会被 Gatekeeper 拦）；参考知档的 `docs/RELEASE_CHECKLIST.md` 整理一份发布清单。

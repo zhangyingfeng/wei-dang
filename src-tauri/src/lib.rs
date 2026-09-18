@@ -3,7 +3,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::menu::{Menu, MenuItemBuilder, MenuItemKind};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_shell::process::CommandChild;
+use tauri_plugin_shell::ShellExt;
 use tokio::sync::oneshot;
 
 // Matches src/index.ts's listen(app, 4417) call — see docs/DESIGN.md for why
@@ -13,12 +15,10 @@ const APP_URL: &str = "http://127.0.0.1:4417";
 const WEIXIN_LOGIN_URL: &str = "https://mp.weixin.qq.com/";
 
 /// Creates the main window pointed at the local Express server. In `tauri
-/// dev` that server is already running (started by `beforeDevCommand`).
-///
-/// Release packaging (a compiled sidecar binary the app spawns itself, so a
-/// packaged .app doesn't depend on `npm run dev` still running) isn't set up
-/// yet — see docs/DESIGN.md. For now this always points at the dev server,
-/// so only `npm run tauri dev` actually works end to end.
+/// dev` that server is already running (started by `beforeDevCommand`); in a
+/// release build we spawn it ourselves first as a sidecar (see
+/// `spawn_backend_sidecar`) — either way it ends up listening on the same
+/// `APP_URL`.
 fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
   let url = APP_URL.parse().expect("APP_URL is a valid URL");
   WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
@@ -72,6 +72,53 @@ fn build_menu_with_custom_about(app: &tauri::AppHandle) -> tauri::Result<Menu<ta
     }
   }
   Ok(menu)
+}
+
+/// Holds the sidecar's process handle so it can be killed on app exit (see
+/// `kill_backend_sidecar`). Without this, `CommandChild::kill` is never
+/// reachable and the sidecar — spawned via `tauri_plugin_shell`, which does
+/// NOT tie the child's lifetime to the parent app — outlives a normal quit,
+/// gets reparented to launchd, and keeps holding its port. A later launch's
+/// window can then silently end up talking to that stale process instead of
+/// its own fresh one.
+#[derive(Default)]
+struct SidecarProcess(Mutex<Option<CommandChild>>);
+
+fn spawn_backend_sidecar(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+  let resource_dir = app.path().resource_dir()?;
+  let public_dir = resource_dir.join("public");
+  let sidecar = app
+    .shell()
+    .sidecar("weidang-server")?
+    .env("WEIDANG_PUBLIC_DIR", public_dir.to_string_lossy().to_string());
+  let (mut events, child) = sidecar.spawn()?;
+  if let Some(state) = app.try_state::<SidecarProcess>() {
+    *state.0.lock().unwrap() = Some(child);
+  }
+  tauri::async_runtime::spawn(async move {
+    while let Some(event) = events.recv().await {
+      if let tauri_plugin_shell::process::CommandEvent::Stderr(line) = event {
+        eprintln!("[server] {}", String::from_utf8_lossy(&line));
+      }
+    }
+  });
+  Ok(())
+}
+
+/// Kills the sidecar spawned by `spawn_backend_sidecar`, if any is still
+/// running. Called from the `RunEvent::Exit` handler in `run()` so the
+/// server process doesn't outlive the app.
+///
+/// This hooks `Exit`, not the seemingly more obvious `ExitRequested`: a
+/// normal macOS quit never emits `ExitRequested` at all (verified in
+/// zhi-dang, which shares this exact pattern) — the event loop goes
+/// straight from `MainEventsCleared` to `Exit`.
+fn kill_backend_sidecar(app: &tauri::AppHandle) {
+  if let Some(state) = app.try_state::<SidecarProcess>() {
+    if let Some(child) = state.0.lock().unwrap().take() {
+      let _ = child.kill();
+    }
+  }
 }
 
 /// Grows (or shrinks) the main window's height to fit the current step, while
@@ -276,10 +323,12 @@ fn logout(app: tauri::AppHandle) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app = tauri::Builder::default()
+    .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_notification::init())
     .setup(|app| {
+      app.manage(SidecarProcess::default());
       let menu = build_menu_with_custom_about(app.handle())?;
       app.set_menu(menu)?;
       app.on_menu_event(|app, event| {
@@ -295,8 +344,11 @@ pub fn run() {
             .level(log::LevelFilter::Info)
             .build(),
         )?;
+        create_main_window(app.handle())?;
+      } else {
+        spawn_backend_sidecar(app.handle())?;
+        create_main_window(app.handle())?;
       }
-      create_main_window(app.handle())?;
       create_login_window(app.handle())?;
       Ok(())
     })
@@ -313,5 +365,9 @@ pub fn run() {
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application");
-  app.run(|_app_handle, _event| {});
+  app.run(|app_handle, event| {
+    if let RunEvent::Exit = event {
+      kill_backend_sidecar(app_handle);
+    }
+  });
 }
