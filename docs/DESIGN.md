@@ -90,6 +90,19 @@
 
 新的主图源存在 `assets/app-icon-source.png`（1024x1024，之前迁移的知档脚本已经把圆角/边距做成符合 Apple 官方 macOS 图标规格的比例，这版直接复用了那个已经调好的形状，只换像素颜色，没有重新算过圆角），`src-tauri/icons/` 是从它跑 `npx tauri icon assets/app-icon-source.png -o src-tauri/icons` 重新生成的（删掉了用不到的 `ios/`/`android/` 子目录，保持和知档一致）。
 
+## 代码签名 + 公证（2026-09-18）
+
+`tauri.conf.json` 的 `bundle.macOS.signingIdentity` 指向知档一直在用的那个证书（`Developer ID Application: YingFeng Zhang (P38K63763C)`）——Apple Developer 证书是绑在开发者账号上的，不是绑单个 app，可以直接复用，不用新申请。公证需要的 `APPLE_ID`/`APPLE_PASSWORD`/`APPLE_TEAM_ID` 这三个环境变量在这台机器上也已经是现成的（应该是配置知档发布流程时留下的），`tauri build` 会自动读取并在打包时把公证也做了，不需要额外脚本。
+
+**验证结果**（跑了一次真正的 `tauri build`，全流程用真实 Apple 服务器）：
+
+- 构建日志显示 `Notarizing Finished with status Accepted`，并且自动 `Stapling app`（把公证凭证钉在 `.app` 上，这样离线也能通过 Gatekeeper 检查，不需要每次联网问 Apple）
+- `codesign --verify --deep --strict` 通过；`codesign -dv` 显示 `TeamIdentifier=P38K63763C`（真实身份，不是 ad-hoc）
+- `spctl -a -vvv` 返回 `accepted` / `source=Notarized Developer ID`
+- `xcrun stapler validate` 显示 `The validate action worked!`
+- 给 `.app` 手动打上 `com.apple.quarantine` 标记模拟真实下载后再打开——没有弹出任何 Gatekeeper 警告，正常启动（macOS 会把它跑在一个临时的 App Translocation 路径下，这是系统对"还没拖进 /Applications 的下载文件"的标准处理，不是信任问题），sidecar 正常监听 4417，退出后进程干净退出——完整的"最终用户视角"体验走通了
+- `.dmg` 容器本身没有单独公证（`spctl` 对 `.dmg` 文件本身显示 `rejected`/`Unnotarized`）——查了一下**知档实际发布过的 `.dmg`（`release-staging/` 里的）也是这个状态**（甚至没有签名），说明这是正常情况：Gatekeeper 真正检查的是解压/拖出来的 `.app` 本身（已验证通过），不是外层的磁盘镜像容器，不需要额外处理。
+
 ## 下一步
 
 1. ~~找一个真实公众号，手动登录后台抓包，核对 `src/source/weixin.ts` 里的每一处 TODO。~~ 已完成（2026-09-17），见上面"已用真实账号验证过"。
@@ -98,4 +111,5 @@
 4. ~~真正跑一次端到端。~~ 已完成（2026-09-17），见上面"第一次真正端到端跑通"——顺带修了两个真实 bug。
 5. ~~打包发布：把 Express 编译成 sidecar 二进制，让 `tauri build` 产出真正能独立运行的 `.app`。~~ 已完成（2026-09-18），见上面"打包发布"。
 6. ~~换一版正式图标。~~ 已完成（2026-09-18），见上面"正式图标"。
-7. 配一个真正的 Developer ID 签名 + 公证（对外分发前必须做，否则用户打开会被 Gatekeeper 拦——签名证书和公证凭据其实都已经在这台机器上，是从知档那边继承下来的，缺的只是把 `macOS.signingIdentity` 接进 `tauri.conf.json` 然后实际跑一次）；参考知档的 `docs/RELEASE_CHECKLIST.md` 整理一份发布清单；仓库现在是 private，真要给别人下载还需要决定要不要改成 public。
+7. ~~配一个真正的 Developer ID 签名 + 公证。~~ 已完成（2026-09-18），见上面"代码签名 + 公证"。
+8. 参考知档的 `docs/RELEASE_CHECKLIST.md` 整理一份发布清单；仓库现在是 private，真要给别人下载还需要决定要不要改成 public；正式发布时把版本号从 `0.1.0` 往上提，五个记版本号的地方（`package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`src-tauri/tauri.conf.json`）要同步改。

@@ -31,6 +31,9 @@
     },
     "externalBin": [
       "binaries/weidang-server"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "Developer ID Application: YingFeng Zhang (P38K63763C)"
+    }
   }
 }
