@@ -118,7 +118,9 @@ fn open_login_window(app: tauri::AppHandle) -> Result<(), String> {
   Ok(())
 }
 
-/// Hides the login window (used by the in-page "close this window" button).
+/// Hides the login window — called from app.js the instant `wait_for_login`
+/// resolves, since the 1000x760 login window otherwise sits on top of the
+/// much smaller main window and hides the download step it just unlocked.
 ///
 /// This deliberately hides rather than destroys the window: every later
 /// backend API call runs as `fetch()` inside this window's own page context
@@ -129,6 +131,14 @@ fn open_login_window(app: tauri::AppHandle) -> Result<(), String> {
 fn close_login_window(app: tauri::AppHandle) -> Result<(), String> {
   if let Some(win) = app.get_webview_window("login") {
     win.hide().map_err(|e| e.to_string())?;
+  }
+  // Hiding the login window doesn't reliably hand focus back to the main
+  // window on its own — without this, macOS can leave the app inactive (or
+  // focus whatever window was behind the login window before it existed),
+  // so the just-unblocked download step still isn't the thing the user
+  // actually sees.
+  if let Some(win) = app.get_webview_window("main") {
+    win.set_focus().map_err(|e| e.to_string())?;
   }
   Ok(())
 }
@@ -227,8 +237,10 @@ async fn check_login_status(app: tauri::AppHandle) -> Result<serde_json::Value, 
 }
 
 /// Polls the login window until it has navigated to the post-login admin
-/// home page with a token in the URL, then shows a "you can close this
-/// window" banner inside it.
+/// home page with a token in the URL. The caller (app.js) closes the login
+/// window itself the moment this resolves — see close_login_window's doc
+/// comment — so there's no in-window banner here to prompt a manual close;
+/// by the time anyone could read one, the window would already be gone.
 #[tauri::command]
 async fn wait_for_login(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
   let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
@@ -237,24 +249,6 @@ async fn wait_for_login(app: tauri::AppHandle) -> Result<serde_json::Value, Stri
       return Err("登录窗口已关闭，请重新点击登录。".to_string());
     }
     if let Some(token) = current_token(&app) {
-      if let Some(win) = app.get_webview_window("login") {
-        let banner = r#"(() => {
-          if (document.getElementById('wd-login-ok')) return;
-          const b = document.createElement('div');
-          b.id = 'wd-login-ok';
-          b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#1a7f37;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:center;gap:14px;font:600 15px -apple-system,sans-serif;z-index:2147483647;';
-          const text = document.createElement('span');
-          text.textContent = '登录成功，可以关闭此窗口';
-          const btn = document.createElement('button');
-          btn.textContent = '关闭窗口';
-          btn.style.cssText = 'background:#fff;color:#1a7f37;border:0;border-radius:6px;padding:8px 14px;font:600 14px -apple-system,sans-serif;cursor:pointer;';
-          btn.onclick = () => window.__TAURI__.core.invoke('close_login_window');
-          b.appendChild(text);
-          b.appendChild(btn);
-          document.body.prepend(b);
-        })();"#;
-        let _ = win.eval(banner);
-      }
       return Ok(serde_json::json!({ "token": token }));
     }
     if tokio::time::Instant::now() >= deadline {

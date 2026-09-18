@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "login-remote",
-  "description": "Minimal IPC access for the embedded public-account login window: only lets the loaded mp.weixin.qq.com page report a fetch result back or close itself, nothing else.",
+  "description": "Minimal IPC access for the embedded public-account login window: only lets the loaded mp.weixin.qq.com page report a fetch result back, nothing else — the login window is closed from the main window now (app.js, right after wait_for_login resolves), not from a button inside this page.",
   "windows": [
     "login"
   ],
@@ -9,7 +9,6 @@
     "urls": ["https://mp.weixin.qq.com/*"]
   },
   "permissions": [
-    "allow-weixin-fetch-result",
-    "allow-close-login-window"
+    "allow-weixin-fetch-result"
   ]
 }

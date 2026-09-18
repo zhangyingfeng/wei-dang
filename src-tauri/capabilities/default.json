@@ -11,6 +11,7 @@
   "permissions": [
     "core:default",
     "allow-open-login-window",
+    "allow-close-login-window",
     "allow-weixin-fetch",
     "allow-wait-for-login",
     "allow-resize-main-window",

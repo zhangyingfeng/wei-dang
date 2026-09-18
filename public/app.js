@@ -231,6 +231,11 @@ $("auth-btn").onclick=async()=>{
   try{
     await invoke("open_login_window");
     const result=await invoke("wait_for_login");
+    // Auto-dismiss the login window the moment login succeeds — it's a
+    // large window (1000x760) sitting on top of the much smaller main
+    // window, so without this the user has to notice and manually minimize
+    // it before they can see the just-unlocked download step underneath.
+    invoke("close_login_window").catch(()=>{});
     token=result.token;
     $("dir").value="exports";
     $("status-section").hidden=false;
