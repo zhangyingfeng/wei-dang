@@ -19,7 +19,7 @@
 
 ## 目前的状态：能打包成独立运行的 .app，还没正式发布
 
-微档已经用一个真实公众号账号完整跑通过一次"扫码登录 → 导出到本地文件"：登录窗口、token 捕获、接口 relay、列表/正文抓取、Markdown/Word 落盘、断点续传都验证过。`npm run tauri build` 能产出一个不依赖 `npm run dev` 独立运行的 `.app`（服务端编译成了 Tauri sidecar 一起打包）。还没做的：正式的代码签名（现在只有本机 ad-hoc 签名，公开分发会被 Gatekeeper 拦）、正式图标（现在是脚本生成的占位符）、真的触发过一次验证码/风控。技术方案的选择理由、已验证和未验证的细节，写在 [docs/DESIGN.md](docs/DESIGN.md) 里。
+微档已经用一个真实公众号账号完整跑通过一次"扫码登录 → 导出到本地文件"：登录窗口、token 捕获、接口 relay、列表/正文抓取、Markdown/Word 落盘、断点续传都验证过。`npm run tauri build` 能产出一个不依赖 `npm run dev` 独立运行的 `.app`（服务端编译成了 Tauri sidecar 一起打包）。还没做的：正式的代码签名 + 公证（现在只有本机 ad-hoc 签名，公开分发会被 Gatekeeper 拦）、真的触发过一次验证码/风控。技术方案的选择理由、已验证和未验证的细节，写在 [docs/DESIGN.md](docs/DESIGN.md) 里。
 
 ## 和知档的关系
 

@@ -82,7 +82,13 @@
 - katex 桩（`scripts/katex-stub.mjs`）沿用了知档的做法：`markdown-docx`（两个项目用的是同一个 fork、同一个 commit）无条件 `import` 了 katex，但只有调用方显式传 `math.engine === "katex"` 才会真的调用它——`writeWordDoc` 从来没传过这个选项，这条路径本来就走不到，桩件纯粹是为了打包时不用背上 katex 的体积。
 - **有一个容易踩的坑**：`tauri build --debug` 用的也是 `dev` cargo profile，`cfg!(debug_assertions)` 在这种"debug 包"里同样是 `true`——意味着 `--debug` 打出来的 `.app` 依然认为有外部 Express 在跑，不会拉起 sidecar，窗口会是空白的。这不是 bug，是和知档一致的既有行为（`--debug` 只是用来快速验证打包机制本身，不代表可独立运行）；真正验证"打包出的 `.app` 能不能独立跑起来"，必须用不带 `--debug` 的正式 `tauri build`（release 优化编译，慢很多）。
 - **验证方式**：跑了一次真正的 `tauri build`（非 debug），在完全没有 `npm run dev`/`npm run tauri dev` 跑着的干净环境下直接 `open` 产出的 `.app`——sidecar 正确拉起、监听 4417，主窗口渲染正常；退出 app 之后 sidecar 进程也正确一起退出（`kill_backend_sidecar`），没有残留进程占用端口。这是第一次验证"打包出来的 `.app` 能不能真的脱离开发环境独立运行"，结果是可以。
-- 图标仍是占位符，真正的代码签名（`macOS.signingIdentity`）也还没配——sidecar 只做了本机 ad-hoc 签名（`codesign --sign -`），不是能公开分发、通过 Gatekeeper 校验的签名，正式对外发布前还需要一个 Developer ID。
+- 图标当时仍是占位符（后来换掉了，见下一节），真正的代码签名（`macOS.signingIdentity`）也还没配——sidecar 只做了本机 ad-hoc 签名（`codesign --sign -`），不是能公开分发、通过 Gatekeeper 校验的签名，正式对外发布前还需要一个 Developer ID。
+
+## 正式图标（2026-09-18）
+
+"档"字的字形直接从知档的 `assets/app-icon-source.png` 里抠出来复用——不是找字体猜的，而是用和知档 `scripts/generate-login-icon.py` 相同的"按颜色混合比例还原透明蒙版、再重新上色"手法，保证字体和字重跟知档完全一致，只换背景色。背景配色用 `sips` 把本机装的微信 App 图标（`/Applications/WeChat.app/Contents/Resources/AppIcon.icns`）转成 PNG，直接从像素里取样出真实的渐变色（`#03DF6E` → 加深到 `#04A854` 左右），不是凭记忆估的十六进制值。出了三版给用户选（微信取样渐变 / 微信品牌纯色 `#07C160` / 加深渐变），选中了加深渐变版，理由是小尺寸下白色"档"字对比度更高。
+
+新的主图源存在 `assets/app-icon-source.png`（1024x1024，之前迁移的知档脚本已经把圆角/边距做成符合 Apple 官方 macOS 图标规格的比例，这版直接复用了那个已经调好的形状，只换像素颜色，没有重新算过圆角），`src-tauri/icons/` 是从它跑 `npx tauri icon assets/app-icon-source.png -o src-tauri/icons` 重新生成的（删掉了用不到的 `ios/`/`android/` 子目录，保持和知档一致）。
 
 ## 下一步
 
@@ -91,4 +97,5 @@
 3. ~~参考知档 `src-tauri/src/lib.rs` 的登录窗口机制，做一个指向 `mp.weixin.qq.com` 的对应实现。~~ 已完成（2026-09-17），见上面"登录窗口 + Tauri 壳子"。
 4. ~~真正跑一次端到端。~~ 已完成（2026-09-17），见上面"第一次真正端到端跑通"——顺带修了两个真实 bug。
 5. ~~打包发布：把 Express 编译成 sidecar 二进制，让 `tauri build` 产出真正能独立运行的 `.app`。~~ 已完成（2026-09-18），见上面"打包发布"。
-6. 换一版正式图标；配一个真正的 Developer ID 签名（对外分发前必须做，否则用户打开会被 Gatekeeper 拦）；参考知档的 `docs/RELEASE_CHECKLIST.md` 整理一份发布清单。
+6. ~~换一版正式图标。~~ 已完成（2026-09-18），见上面"正式图标"。
+7. 配一个真正的 Developer ID 签名 + 公证（对外分发前必须做，否则用户打开会被 Gatekeeper 拦——签名证书和公证凭据其实都已经在这台机器上，是从知档那边继承下来的，缺的只是把 `macOS.signingIdentity` 接进 `tauri.conf.json` 然后实际跑一次）；参考知档的 `docs/RELEASE_CHECKLIST.md` 整理一份发布清单；仓库现在是 private，真要给别人下载还需要决定要不要改成 public。
