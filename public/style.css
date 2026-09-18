@@ -102,9 +102,10 @@ progress::-webkit-progress-value{background:AccentColor;border-radius:2px;transi
 .task-dot.active{background:#4b9bf5;animation:pulse 1.4s ease-in-out infinite}
 .task-dot.done{background:#3ea55c}
 .task-dot.error{background:#e5484d}
-.task-dot.skipped{background:color-mix(in srgb,CanvasText 35%,Canvas)}
-/* A skipped row is a deliberate user choice, not a failure — dim and
-   strike the title so it reads as "intentionally left out" at a glance,
+.task-dot.skipped,.task-dot.deleted{background:color-mix(in srgb,CanvasText 35%,Canvas)}
+/* A skipped row is a deliberate user choice, not a failure; "deleted" means
+   the article's own author removed it — permanent either way, so both dim
+   and strike the title so they read as "nothing to do here" at a glance,
    distinct from the red error state. */
 .task-item.skipped .task-title{opacity:.55;text-decoration:line-through}
 .task-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:CanvasText}
@@ -114,6 +115,13 @@ progress::-webkit-progress-value{background:AccentColor;border-radius:2px;transi
 .task-dup{
   flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;
   background:color-mix(in srgb,#eda100 22%,Canvas);color:color-mix(in srgb,#eda100 65%,CanvasText);
+}
+/* Same pill shape as .task-dup, neutral gray instead of amber since this
+   isn't a hint to weigh — it's a confirmed, permanent fact (see
+   DeletedContentError) that a later run skips outright. */
+.task-deleted{
+  flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;
+  background:color-mix(in srgb,CanvasText 10%,Canvas);color:color-mix(in srgb,CanvasText 50%,Canvas);
 }
 /* Reserved for per-item management controls (pause/skip, duplicate-merge,
    resume) in a later pass — the expand toggle is the first thing to live

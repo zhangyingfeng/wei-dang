@@ -90,6 +90,7 @@ export function createServer() {
     // an error; assertSafeOutputDir above already made the trust call.
     const resumedRecords = new Map<string, ExportRecord>();
     const resumedSkippedIds = new Set<string>();
+    const resumedDeletedIds = new Set<string>();
     try {
       const prevIndex = JSON.parse(await readFile(path.join(out, "index.json"), "utf8"));
       for (const record of prevIndex.items ?? []) resumedRecords.set(record.id, record);
@@ -97,6 +98,10 @@ export function createServer() {
     try {
       const prevReport = JSON.parse(await readFile(path.join(out, "export-report.json"), "utf8"));
       for (const s of prevReport.skippedItems ?? []) resumedSkippedIds.add(s.itemId);
+      // Deleted is a permanent, per-article fact (see DeletedContentError) —
+      // once a run has confirmed it, a later run trusts that instead of
+      // re-fetching (and re-failing) the same known-gone article forever.
+      for (const d of prevReport.deletedItems ?? []) resumedDeletedIds.add(d.itemId);
     } catch {}
     res.json({ ok: true });
     void (async () => {
@@ -133,14 +138,15 @@ export function createServer() {
         // instead of every row starting at "未开始" again.
         const tasks: ExportTask[] = items.map((it) => {
           const alreadyDone = resumedRecords.has(it.id);
-          const alreadySkipped = !alreadyDone && resumedSkippedIds.has(it.id);
-          const status: TaskStatus = alreadyDone ? "done" : alreadySkipped ? "skipped" : "pending";
+          const alreadyDeleted = !alreadyDone && resumedDeletedIds.has(it.id);
+          const alreadySkipped = !alreadyDone && !alreadyDeleted && resumedSkippedIds.has(it.id);
+          const status: TaskStatus = alreadyDone ? "done" : alreadyDeleted ? "deleted" : alreadySkipped ? "skipped" : "pending";
           return { id: it.id, title: it.title, status, subtasks: [...(data.downloadImages ? [{ key: "images" as const, status }] : []), { key: "write" as const, status }, { key: "word" as const, status }], duplicate: contentDuplicates.get(it.id) };
         });
         const taskById = new Map(tasks.map((t) => [t.id, t]));
-        const doneCount = () => tasks.reduce((n, t) => n + (t.status === "done" || t.status === "error" || t.status === "skipped" ? 1 : 0), 0);
-        exportControl = { paused: false, skippedItemIds: resumedSkippedIds, skipImagesItemIds: new Set(), resumedRecords };
-        const resumedCount = resumedRecords.size + resumedSkippedIds.size;
+        const doneCount = () => tasks.reduce((n, t) => n + (t.status === "done" || t.status === "error" || t.status === "skipped" || t.status === "deleted" ? 1 : 0), 0);
+        exportControl = { paused: false, skippedItemIds: resumedSkippedIds, skipImagesItemIds: new Set(), resumedRecords, deletedItemIds: resumedDeletedIds };
+        const resumedCount = resumedRecords.size + resumedSkippedIds.size + resumedDeletedIds.size;
         progress = { phase: "exporting", message: resumedCount ? `继续导出：${resumedCount} 项已在上次完成` : "开始导出", current: doneCount(), total: tasks.length, tasks, paused: false };
         let sessionExpired = false;
         try {
@@ -163,13 +169,14 @@ export function createServer() {
           }, exportControl));
         } finally { exportControl = null; }
         const skippedCount = tasks.filter((t) => t.status === "skipped").length;
+        const deletedCount = tasks.filter((t) => t.status === "deleted").length;
         const duplicateCount = listingReport.duplicates;
         if (sessionExpired) {
           const succeededCount = tasks.filter((t) => t.status === "done").length;
           const remainingCount = tasks.filter((t) => t.status === "pending").length;
           progress = { phase: "session-expired", message: `登录状态已失效：已导出 ${succeededCount} 项，剩余 ${remainingCount} 项待续传；请重新登录后再次点击「开始导出」继续。`, current: doneCount(), total: tasks.length, outputDir: out, tasks };
         } else {
-          progress = { phase: "done", message: `完成：${items.length} 篇文章${duplicateCount ? `；已去重 ${duplicateCount} 条重复记录` : ""}${skippedCount ? `；已跳过 ${skippedCount} 项` : ""}`, current: items.length, total: items.length, outputDir: out, tasks };
+          progress = { phase: "done", message: `完成：${items.length} 篇文章${duplicateCount ? `；已去重 ${duplicateCount} 条重复记录` : ""}${skippedCount ? `；已跳过 ${skippedCount} 项` : ""}${deletedCount ? `；作者已删除 ${deletedCount} 项` : ""}`, current: items.length, total: items.length, outputDir: out, tasks };
         }
       } catch (e) { progress = { phase: "error", message: e instanceof Error ? e.message : String(e) }; }
     })();

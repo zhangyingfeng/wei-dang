@@ -22,3 +22,13 @@ export interface ContentSource {
 // per-day quota on this path (see docs/DESIGN.md), the failure mode here is
 // "the session itself stopped working," not "ran out of allowance."
 export class SessionExpiredError extends Error {}
+
+// Thrown when the article's own author has deleted it — confirmed against a
+// real account's own publish history, where the public page still returns
+// HTTP 200 but with "该内容已被发布者删除" instead of a body (see weixin.ts).
+// Distinct from a generic fetch failure: this is a permanent, per-article
+// fact rather than a transient condition retrying could fix, and
+// Exporter.export persists it across runs (export-report.json's
+// deletedItems) so a later run doesn't keep re-attempting — and re-failing
+// — the same known-gone article forever.
+export class DeletedContentError extends Error {}

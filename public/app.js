@@ -62,7 +62,7 @@ async function resizeToContent(){
 // once per item id and then only patched in place, so scrolling through a
 // long list — or an expanded detail panel — isn't reset out from under the
 // user every 1.2s.
-const statusLabel=s=>s==="active"?"进行中":s==="done"?"完成":s==="error"?"失败":s==="skipped"?"已跳过":"未开始";
+const statusLabel=s=>s==="active"?"进行中":s==="done"?"完成":s==="error"?"失败":s==="skipped"?"已跳过":s==="deleted"?"已删除":"未开始";
 const subTaskLabel=key=>key==="images"?"图片":key==="word"?"Word":"写入";
 const taskRows=new Map();
 function clearTaskList(){
@@ -78,12 +78,17 @@ function buildTaskRow(t){
   // Read-only hint only — exact-content duplicate candidates are flagged
   // here so the user can see them, but no merge/skip action exists.
   const dup=document.createElement("span"); dup.className="task-dup"; dup.textContent="疑似重复"; dup.hidden=true;
+  // Shown once the backend has confirmed (via DeletedContentError) that the
+  // article's own author deleted it — a permanent state a later run skips
+  // outright (see ExportControl.deletedItemIds), so this badge is the only
+  // visible trace of it once that happens, not just an error-dot tooltip.
+  const deleted=document.createElement("span"); deleted.className="task-deleted"; deleted.textContent="已删除"; deleted.hidden=true;
   const actions=document.createElement("span"); actions.className="task-actions";
   const skipBtn=document.createElement("button"); skipBtn.type="button"; skipBtn.className="task-skip"; skipBtn.textContent="跳过"; skipBtn.hidden=true;
   skipBtn.onclick=()=>{ skipBtn.disabled=true; post("/api/export/skip",{id:t.id,scope:"item"}).catch(e=>{ skipBtn.disabled=false; showToast(e.message||String(e),true); }); };
   const expandBtn=document.createElement("button"); expandBtn.type="button"; expandBtn.className="task-expand"; expandBtn.textContent="▸"; expandBtn.setAttribute("aria-label","展开详情");
   actions.append(skipBtn,expandBtn);
-  row.append(dot,title,dup,actions);
+  row.append(dot,title,dup,deleted,actions);
 
   const detail=document.createElement("div"); detail.className="task-detail"; detail.hidden=true;
   const subEls=new Map();
@@ -109,13 +114,19 @@ function buildTaskRow(t){
     resizeToContent();
   };
   item.append(row,detail);
-  return {item,dot,dup,skipBtn,subEls};
+  return {item,dot,dup,deleted,skipBtn,subEls};
 }
 function patchTaskRow(entry,t){
-  entry.item.classList.toggle("skipped",t.status==="skipped");
+  // Both "skipped" (user chose to skip) and "deleted" (author deleted it)
+  // are terminal, nothing-to-do-here states, so they share the same dim +
+  // strikethrough treatment — "deleted" additionally gets its own badge
+  // below, since unlike a skip it isn't a choice the user just made and
+  // would otherwise have no way to tell apart from a plain failure.
+  entry.item.classList.toggle("skipped",t.status==="skipped"||t.status==="deleted");
   entry.dot.className="task-dot "+t.status;
   entry.dot.title=statusLabel(t.status)+(t.error?`：${t.error}`:"");
   entry.dup.hidden=!t.duplicate;
+  entry.deleted.hidden=t.status!=="deleted";
   if(t.duplicate) entry.dup.title=`与 ${t.duplicate.otherTitles.length} 项内容完全一致：${t.duplicate.otherTitles.join("、")}`;
   entry.skipBtn.hidden=t.status!=="pending";
   for(const s of t.subtasks){

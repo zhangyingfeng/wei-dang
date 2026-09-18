@@ -1,5 +1,5 @@
 import { sleep } from "../util.js";
-import type { ContentSource } from "./types.js";
+import { DeletedContentError, type ContentSource } from "./types.js";
 import type { WeixinItem } from "../types.js";
 
 // The (only, so far) ContentSource implementation — "路线B" from
@@ -198,7 +198,7 @@ export class WeixinContentSource implements ContentSource {
     const html = await response.text();
     const content = extractJsContent(html);
     if (content === null) {
-      if (DELETED_MARKERS.some((marker) => html.includes(marker))) throw new Error("这篇文章已被作者删除，无法归档正文。");
+      if (DELETED_MARKERS.some((marker) => html.includes(marker))) throw new DeletedContentError("这篇文章已被作者删除，无法归档正文。");
       // TODO: "仅限特定读者可见"/"环境异常" interstitials haven't actually
       // been observed yet (only the deleted case has), so they'd still fall
       // through to this generic message rather than a specific one.

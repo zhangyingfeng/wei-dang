@@ -6,7 +6,7 @@ import markdownDocx, { Packer } from "markdown-docx";
 import type { DuplicateInfo, ExportControl, ExportOptions, ExportRecord, ListingReport, TaskEvent, WeixinItem } from "./types.js";
 import { MIN_DEDUP_TEXT_LENGTH, contentHash, isoDate, normalizePlainText, safeName, sleep, writeFileAtomic, writeJson } from "./util.js";
 import { downloadImage, extractImageUrls, normalizeImageSources } from "./weixinMedia.js";
-import { SessionExpiredError, type ContentSource } from "./source/types.js";
+import { DeletedContentError, SessionExpiredError, type ContentSource } from "./source/types.js";
 
 // Ported from zhi-dang's Exporter almost unchanged — this layer (Markdown
 // conversion, image localization/dedup, Word export, incremental manifest
@@ -21,7 +21,7 @@ export class Exporter {
   private imageCache=new Map<string,string>();
   async export(items:WeixinItem[],listingReport:ListingReport,opts:ExportOptions,source:ContentSource,onEvent:(e:TaskEvent)=>void,control:ExportControl={paused:false,skippedItemIds:new Set(),skipImagesItemIds:new Set()}){
     this.imageCache.clear(); await mkdir(opts.outputDir,{recursive:true});
-    const records:ExportRecord[]=[]; const imageFailures:ImageFailure[]=[]; const itemFailures:ItemFailure[]=[]; const skippedItems:SkippedItem[]=[]; const wordFailures:WordFailure[]=[];
+    const records:ExportRecord[]=[]; const imageFailures:ImageFailure[]=[]; const itemFailures:ItemFailure[]=[]; const skippedItems:SkippedItem[]=[]; const deletedItems:DeletedItem[]=[]; const wordFailures:WordFailure[]=[];
     const hashGroups=new Map<string,{id:string;title:string}[]>();
     const noteContentHash=(item:WeixinItem,html:string)=>{
       if(normalizePlainText(html).length<MIN_DEDUP_TEXT_LENGTH) return;
@@ -36,21 +36,23 @@ export class Exporter {
         onEvent({type:"duplicate",id:member.id,info});
       }
     };
-    const persist=()=>this.writeManifests(opts.outputDir,items.length,listingReport,records,itemFailures,skippedItems,imageFailures,wordFailures);
+    const persist=()=>this.writeManifests(opts.outputDir,items.length,listingReport,records,itemFailures,skippedItems,deletedItems,imageFailures,wordFailures);
     let sessionExpired=false;
     for(let i=0;i<items.length;i++){
       const item=items[i];
       if(control.skippedItemIds.has(item.id)){ skippedItems.push({itemId:item.id,title:item.title}); onEvent({type:"done",id:item.id,status:"skipped"}); await persist(); continue; }
       const resumed=control.resumedRecords?.get(item.id);
       if(resumed){ records.push(resumed); onEvent({type:"done",id:item.id,status:"done"}); await persist(); continue; }
+      if(control.deletedItemIds?.has(item.id)){ deletedItems.push({itemId:item.id,title:item.title}); onEvent({type:"done",id:item.id,status:"deleted"}); await persist(); continue; }
       if(sessionExpired) continue;
       await waitWhilePaused(control);
       let html:string;
       try{ html=await this.fetchBodyWithRetry(source,item); }
       catch(error){
         if(error instanceof SessionExpiredError){ sessionExpired=true; continue; }
-        const message=error instanceof Error?error.message:String(error);
         onEvent({type:"start",id:item.id});
+        if(error instanceof DeletedContentError){ deletedItems.push({itemId:item.id,title:item.title}); onEvent({type:"done",id:item.id,status:"deleted"}); await persist(); await sleep(opts.delayMs); continue; }
+        const message=error instanceof Error?error.message:String(error);
         itemFailures.push({itemId:item.id,title:item.title,error:message}); onEvent({type:"done",id:item.id,status:"error",error:message});
         await persist(); await sleep(opts.delayMs); continue;
       }
@@ -99,11 +101,14 @@ export class Exporter {
     await persist();
     return { sessionExpired };
   }
-  private async writeManifests(outputDir:string,discovered:number,listingReport:ListingReport,records:ExportRecord[],itemFailures:ItemFailure[],skippedItems:SkippedItem[],imageFailures:ImageFailure[],wordFailures:WordFailure[]){
-    const exportedAt=new Date().toISOString(); const summary={discovered,succeeded:records.length,failed:itemFailures.length,skipped:skippedItems.length,imageFailures:imageFailures.length,wordFailures:wordFailures.length};
+  private async writeManifests(outputDir:string,discovered:number,listingReport:ListingReport,records:ExportRecord[],itemFailures:ItemFailure[],skippedItems:SkippedItem[],deletedItems:DeletedItem[],imageFailures:ImageFailure[],wordFailures:WordFailure[]){
+    const exportedAt=new Date().toISOString(); const summary={discovered,succeeded:records.length,failed:itemFailures.length,skipped:skippedItems.length,deleted:deletedItems.length,imageFailures:imageFailures.length,wordFailures:wordFailures.length};
     await writeJson(path.join(outputDir,"index.json"),{schemaVersion:"1.0.0",exportedAt,summary,items:records});
-    await writeJson(path.join(outputDir,"export-report.json"),{schemaVersion:"1.0.0",exportedAt,summary,listingReport,itemFailures,imageFailures,wordFailures,skippedItems});
-    await writeFileAtomic(path.join(outputDir,"README.md"),`# 微信公众号文章归档\n\n发现 ${summary.discovered} 项，成功 ${summary.succeeded} 项，失败 ${summary.failed} 项${summary.skipped?`，用户跳过 ${summary.skipped} 项`:""}。图片失败 ${summary.imageFailures} 项，Word 转换失败 ${summary.wordFailures} 项，详情见 export-report.json。${listingReport.warning?`\n\n## 列表警告\n\n- ${listingReport.warning}\n`:"\n"}`);
+    // deletedItems is what lets a later run's server.ts seed
+    // ExportControl.deletedItemIds and skip these permanently instead of
+    // re-fetching (and re-failing) the same known-deleted article every time.
+    await writeJson(path.join(outputDir,"export-report.json"),{schemaVersion:"1.0.0",exportedAt,summary,listingReport,itemFailures,imageFailures,wordFailures,skippedItems,deletedItems});
+    await writeFileAtomic(path.join(outputDir,"README.md"),`# 微信公众号文章归档\n\n发现 ${summary.discovered} 项，成功 ${summary.succeeded} 项，失败 ${summary.failed} 项${summary.skipped?`，用户跳过 ${summary.skipped} 项`:""}${summary.deleted?`，作者已删除 ${summary.deleted} 项`:""}。图片失败 ${summary.imageFailures} 项，Word 转换失败 ${summary.wordFailures} 项，详情见 export-report.json。${listingReport.warning?`\n\n## 列表警告\n\n- ${listingReport.warning}\n`:"\n"}`);
   }
   // See zhi-dang's Exporter.writeWordDoc for why this is fed the body
   // markdown (not the version with YAML frontmatter prepended), and why
@@ -140,14 +145,16 @@ export class Exporter {
   // fails to return #js_content on the first request (transient — the same
   // URL refetched moments later returns full content normally), so a single
   // failed fetch shouldn't immediately count an item as lost. Doesn't retry
-  // SessionExpiredError — that's a definitive state a retry can't fix, and
-  // retrying it would just waste requests before the run gives up correctly.
+  // SessionExpiredError (a definitive state a retry can't fix) or
+  // DeletedContentError (an already-deleted article won't un-delete itself
+  // on the second attempt) — retrying either would just waste requests
+  // before the run correctly gives up or records the deletion.
   private async fetchBodyWithRetry(source:ContentSource,item:WeixinItem){
     let last:unknown;
     for(let attempt=1;attempt<=3;attempt++){
       try{ return await source.fetchBody(item); }
       catch(error){
-        if(error instanceof SessionExpiredError) throw error;
+        if(error instanceof SessionExpiredError||error instanceof DeletedContentError) throw error;
         last=error;
         if(attempt<3) await sleep(500*2**(attempt-1));
       }
@@ -159,6 +166,7 @@ export class Exporter {
 type ImageFailure={itemId:string;url:string;error:string};
 type ItemFailure={itemId:string;title:string;error:string};
 type SkippedItem={itemId:string;title:string};
+type DeletedItem={itemId:string;title:string};
 type WordFailure={itemId:string;title:string;error:string};
 
 // Naming by content hash (not source URL) means images reused across posts,

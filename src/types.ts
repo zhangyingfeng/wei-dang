@@ -16,7 +16,7 @@ export interface ExportOptions { outputDir: string; downloadImages: boolean; del
 // raw html (already folded into the written Markdown, so keeping it here
 // too would just double the file size) plus where it ended up on disk.
 export interface ExportRecord extends Omit<WeixinItem,"html"> { cover: string | null; file: string; }
-export type TaskStatus = "pending" | "active" | "done" | "error" | "skipped";
+export type TaskStatus = "pending" | "active" | "done" | "error" | "skipped" | "deleted";
 // One row per image referenced by an item — nested inside the "images"
 // SubTask so the UI can show a per-image breakdown (which one failed, why)
 // behind an expand toggle instead of cluttering the item row itself.
@@ -35,7 +35,7 @@ export type TaskEvent =
   | { type: "subtask"; id: string; key: SubTask["key"]; status: "active" | "done" | "error" | "skipped" }
   | { type: "images-list"; id: string; urls: string[] }
   | { type: "image"; id: string; url: string; status: "active" | "done" | "error"; error?: string }
-  | { type: "done"; id: string; status: "done" | "error" | "skipped"; error?: string }
+  | { type: "done"; id: string; status: "done" | "error" | "skipped" | "deleted"; error?: string }
   | { type: "duplicate"; id: string; info: DuplicateInfo };
 // "session-expired" is distinct from "done": the run stopped early because
 // the logged-in session (see ContentSource/SessionExpiredError in
@@ -46,6 +46,11 @@ export interface Progress { phase: "idle"|"login"|"listing"|"exporting"|"done"|"
 // zhi-dang's src/types.ts for the reasoning (deliberately lighter than a
 // resume-after-restart design, which index.json/resumedRecords cover
 // separately).
-export interface ExportControl { paused: boolean; skippedItemIds: Set<string>; skipImagesItemIds: Set<string>; resumedRecords?: Map<string,ExportRecord>; }
+// deletedItemIds is seeded from a previous run's export-report.json
+// (server.ts) the same way resumedRecords/skippedItemIds are — items the
+// article's own author has deleted are a permanent fact, not something a
+// later run should keep re-attempting and re-failing on (see
+// DeletedContentError in source/types.ts).
+export interface ExportControl { paused: boolean; skippedItemIds: Set<string>; skipImagesItemIds: Set<string>; resumedRecords?: Map<string,ExportRecord>; deletedItemIds?: Set<string>; }
 export interface ListingReport { reportedTotal: number | null; received: number; unique: number; duplicates: number; warning: string | null; }
 export interface ListingResult { items: WeixinItem[]; report: ListingReport; }
