@@ -8,13 +8,12 @@ import type { WeixinItem } from "../types.js";
 // never a search across other accounts. That boundary is the whole reason
 // this project exists instead of just wrapping an existing scraper.
 //
-// This is a skeleton: the overall data flow is settled (copied from
-// zhi-dang's LoginContentSource), but the interface paths, parameters, and
-// response fields are all marked TODO — they come from public reverse-
-// engineering write-ups of other projects, undocumented and unverified
-// against this project's own account, and will need a real capture session
-// before they can be trusted. See docs/DESIGN.md for the full list of open
-// questions.
+// The overall data flow is settled (copied from zhi-dang's
+// LoginContentSource). The listing endpoint's params/response shape and the
+// article-body extraction have been checked against a real logged-in
+// session (2026-09-17, see docs/DESIGN.md) — remaining TODOs below are the
+// parts that capture session didn't exercise (risk-control/challenge
+// responses, session expiry).
 //
 // Key difference from zhi-dang's login source: Zhihu's member-listing
 // endpoint returns full HTML content per item, so fetchBody there is a
@@ -37,30 +36,40 @@ export type WeixinPageFetcher = (url: string) => Promise<{ status: number; body:
 // ever request a different account's content.
 export interface WeixinSession { token: string }
 
-// ---- Listing endpoint shape — everything below is unverified ----
-// Best guess, assembled from third-party reverse-engineering write-ups, not
-// captured from a real session:
+// ---- Listing endpoint shape — verified 2026-09-17 against a real account ----
 //
 //   GET https://mp.weixin.qq.com/cgi-bin/appmsgpublish
-//       ?sub=list&search_field=null&begin=<offset>&count=<pageSize>
-//       &type=9&token=<token>&lang=zh_CN&f=json&ajax=1
+//       ?sub=list&begin=<offset>&count=<pageSize>&query=&type=101_1_102_103
+//       &show_type=&free_publish_type=1_102_103&sub_action=list_ex
+//       &search_card=0&token=<token>&lang=zh_CN&f=json&ajax=1
 //
-// Response roughly { base_resp: { ret, err_msg }, publish_page: "<JSON string>" }
+// `type=9` (the earlier guess) also returns base_resp.ret 0 but an *empty*
+// publish_list on a real account with 27 published items — a silent-empty
+// failure, not a loud one, so this was worth getting right. The admin UI
+// also sends a `fingerprint` param, but the backend accepts requests with it
+// omitted or set to garbage (tested), so it's left out here rather than
+// implementing whatever client-side fingerprinting generates it.
+//
+// Response: { base_resp: { ret, err_msg }, publish_page: "<JSON string>" }
 // — publish_page is itself an escaped JSON string that needs a second parse;
-// each entry's publish_info field is a further nested JSON string. This
-// "string containing a string containing a string" shape is common in these
-// admin-backend endpoints, but the exact nesting here hasn't been confirmed.
+// each entry's publish_info field is a further nested JSON string. Both
+// parse layers and the publish_list/appmsgex field names below are
+// confirmed against real responses.
 interface RawPublishPage { base_resp?: { ret: number; err_msg: string }; publish_page?: string }
 interface RawPublishInfo { appmsgex?: RawAppMsg[] }
-interface RawAppMsg { title: string; link: string; create_time: number; update_time: number; cover_img: string; digest: string }
+interface RawAppMsg { title: string; link: string; create_time: number; update_time: number; cover: string; digest: string }
 
-function buildListUrl(offset: number, pageSize: number, token: string) {
+export function buildListUrl(offset: number, pageSize: number, token: string) {
   const url = new URL("https://mp.weixin.qq.com/cgi-bin/appmsgpublish");
   url.searchParams.set("sub", "list");
-  url.searchParams.set("search_field", "null");
   url.searchParams.set("begin", String(offset));
   url.searchParams.set("count", String(pageSize));
-  url.searchParams.set("type", "9");
+  url.searchParams.set("query", "");
+  url.searchParams.set("type", "101_1_102_103");
+  url.searchParams.set("show_type", "");
+  url.searchParams.set("free_publish_type", "1_102_103");
+  url.searchParams.set("sub_action", "list_ex");
+  url.searchParams.set("search_card", "0");
   url.searchParams.set("token", token);
   url.searchParams.set("lang", "zh_CN");
   url.searchParams.set("f", "json");
@@ -68,15 +77,13 @@ function buildListUrl(offset: number, pageSize: number, token: string) {
   return url.toString();
 }
 
-// TODO: confirm both JSON.parse layers against a real response, and figure
-// out how to classify a non-zero base_resp.ret — known possibilities from
-// other admin-backend tools: an expired session (needs re-login), plain rate
-// limiting, and a risk-control challenge page. The last one in particular
-// often isn't JSON at all — it's an HTML verification page — which this
-// function doesn't detect yet; it'll currently just fail JSON.parse and
-// surface as a generic parse error instead of a clear "you got challenged"
-// message.
-function parsePublishPage(body: string): { items: RawAppMsg[]; isEnd: boolean; totalCount: number } {
+// TODO: the success path (ret 0) is verified; a non-zero base_resp.ret or a
+// non-JSON body has not actually been observed (this capture session never
+// triggered risk control or an expired session), so the classification
+// below — and in particular the risk-control-page guess — is still
+// unconfirmed. Revisit once one of these actually happens against a real
+// account.
+export function parsePublishPage(body: string): { items: RawAppMsg[]; isEnd: boolean; totalCount: number } {
   let page: RawPublishPage;
   try { page = JSON.parse(body); }
   catch { throw new Error("公众号后台返回的不是预期的 JSON——可能是登录态过期，或者触发了验证码/风控页面，需要重新登录。"); }
@@ -89,10 +96,9 @@ function parsePublishPage(body: string): { items: RawAppMsg[]; isEnd: boolean; t
     return info.appmsgex ?? [];
   });
   const totalCount = Number(parsed.total_count ?? 0);
-  // TODO: confirm the actual end-of-pagination condition — total_count
-  // comparison vs. an empty publish_list — against an account whose article
-  // count sits right on a page-size boundary; testing one or two pages
-  // isn't enough to be sure either way generalizes.
+  // Verified against a real 27-article account: total_count stays constant
+  // across pages, and publish_list is empty once offset >= total_count — so
+  // either condition alone is a reliable end-of-pagination signal.
   return { items, isEnd: items.length === 0, totalCount };
 }
 
@@ -115,15 +121,40 @@ function normalizeItem(raw: RawAppMsg): WeixinItem {
     readCount: null,
     likeCount: null,
     commentCount: null,
-    coverUrl: raw.cover_img || null,
+    coverUrl: raw.cover || null,
   };
 }
 
-// TODO: placeholder desktop UA — unverified whether the public article page
-// returns different (or less parseable) markup depending on UA, e.g. a
-// mobile UA producing real content while a desktop UA gets redirected to an
-// interstitial.
+// Confirmed 2026-09-17: a real article page renders full content with this
+// desktop UA (mobile UA not tested, but there's no reason to prefer it).
 const DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
+// A deleted article's public page still returns HTTP 200, just with an
+// interstitial instead of #js_content — confirmed against a real deleted
+// article in this account's own history. Matched by substring rather than
+// parsed structurally since the interstitial's own markup isn't a
+// documented contract, just observed text.
+const DELETED_MARKERS = ["该内容已被发布者删除", "此内容因违规无法查看", "该内容已被发送人删除"];
+
+// #js_content routinely contains nested <div>s of its own (video players,
+// image wrappers), so "stop at the next </div>" truncates real articles —
+// confirmed against a real video post where it cut 221,836 characters of
+// content down to 185. This scans for the actual matching close tag by
+// depth instead of trusting the first one.
+export function extractJsContent(html: string): string | null {
+  const openTagMatch = /<div[^>]*\bid="js_content"[^>]*>/i.exec(html);
+  if (!openTagMatch) return null;
+  const contentStart = openTagMatch.index + openTagMatch[0].length;
+  const tagRe = /<div\b|<\/div>/gi;
+  tagRe.lastIndex = openTagMatch.index;
+  let depth = 0;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(html))) {
+    depth += m[0].toLowerCase().startsWith("<div") ? 1 : -1;
+    if (depth === 0) return html.slice(contentStart, m.index);
+  }
+  return null; // unbalanced markup — shouldn't happen, but don't return a bogus slice
+}
 
 export class WeixinContentSource implements ContentSource {
   constructor(private session: WeixinSession, private fetchPage: WeixinPageFetcher, private delayMs = 1200) {}
@@ -132,11 +163,11 @@ export class WeixinContentSource implements ContentSource {
     const items: WeixinItem[] = [];
     const seen = new Set<string>();
     let offset = 0;
-    // Deliberately conservative: the backend's own admin UI paginates in
-    // small pages (5-20 at a time), and both a large page size and a tight
-    // request cadence are more likely to trip rate limiting or a challenge
-    // page. Worth tuning up once the real thresholds are known.
-    const pageSize = 20;
+    // Matches the real admin UI's own page size (verified 2026-09-17); a
+    // larger page size hasn't been tested and a tight request cadence is
+    // more likely to trip rate limiting or a challenge page, so there's no
+    // reason to push past what the UI itself uses.
+    const pageSize = 10;
     let completed = false;
     const maxPages = 1000;
     for (let guard = 0; guard < maxPages; guard++) {
@@ -165,17 +196,14 @@ export class WeixinContentSource implements ContentSource {
     const response = await fetch(item.url, { headers: { "User-Agent": DESKTOP_UA } });
     if (!response.ok) throw new Error(`公众号文章页面请求失败 ${response.status}`);
     const html = await response.text();
-    // TODO: this regex is a guess at where #js_content starts and ends, not
-    // verified against real markup — nested </div>s inside the body would
-    // truncate it early. The proper fix is a real HTML parser (e.g. pairing
-    // turndown with linkedom/happy-dom) instead of betting on a string match.
-    // Separately: a deleted, friends-only, or "environment abnormal"
-    // article returns an interstitial page instead of the body, and that
-    // case isn't detected here yet — it would currently either fail this
-    // regex (raising the generic error below) or, worse, silently export
-    // the interstitial's text as if it were the article.
-    const match = /<div[^>]*id="js_content"[^>]*>([\s\S]*?)<\/div>\s*(?:<script|<\/div>\s*<div id="js_sg_bar")/i.exec(html);
-    if (!match) throw new Error("未能在文章页面中找到正文（可能页面结构已变化，或文章已被删除/仅限特定读者可见）。");
-    return match[1];
+    const content = extractJsContent(html);
+    if (content === null) {
+      if (DELETED_MARKERS.some((marker) => html.includes(marker))) throw new Error("这篇文章已被作者删除，无法归档正文。");
+      // TODO: "仅限特定读者可见"/"环境异常" interstitials haven't actually
+      // been observed yet (only the deleted case has), so they'd still fall
+      // through to this generic message rather than a specific one.
+      throw new Error("未能在文章页面中找到正文（可能页面结构已变化，或文章仅限特定读者可见）。");
+    }
+    return content;
   }
 }
