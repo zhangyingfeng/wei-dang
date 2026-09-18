@@ -122,4 +122,10 @@
 5. ~~打包发布：把 Express 编译成 sidecar 二进制，让 `tauri build` 产出真正能独立运行的 `.app`。~~ 已完成（2026-09-18），见上面"打包发布"。
 6. ~~换一版正式图标。~~ 已完成（2026-09-18），见上面"正式图标"。
 7. ~~配一个真正的 Developer ID 签名 + 公证。~~ 已完成（2026-09-18），见上面"代码签名 + 公证"。
-8. 参考知档的 `docs/RELEASE_CHECKLIST.md` 整理一份发布清单；仓库现在是 private，真要给别人下载还需要决定要不要改成 public；正式发布时把版本号从 `0.1.0` 往上提，五个记版本号的地方（`package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`src-tauri/tauri.conf.json`）要同步改。
+8. ~~发布 0.1.0。~~ 已完成（2026-09-18）：打了 `v0.1.0` 标签，`gh release create` 建了 GitHub Release，附上了签名+公证过的 `.dmg`——仓库按用户的选择保持 private，Release 只对受邀协作者可见，不是完全公开发布。踩了一个小坑：`gh release create`/`gh release upload` 会把文件名里的中文字符完全丢掉（不是编码错误，是直接消失），最后按知档的既有习惯把 `.dmg` 文件名改成纯 ASCII（`wei-dang_0.1.0_aarch64.dmg`）才正常。
+
+## 再往后
+
+- 补上验证码/风控页面的识别和清晰的错误提示——目前几次真实端到端运行都没有触发过风控，`parsePublishPage` 对非 `ret:0` 响应的分类还是猜测，没有真实样本可以核对。
+- 如果以后决定要真正公开发布（不只是给受邀协作者），需要重新考虑仓库可见性、要不要整理一份类似知档 `docs/RELEASE_CHECKLIST.md` 的正式发布清单。
+- 再往后的版本号更新，记得五个记版本号的地方（`package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`src-tauri/tauri.conf.json`）要同步改。
