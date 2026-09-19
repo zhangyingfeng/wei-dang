@@ -1,0 +1,25 @@
+# 微档
+
+> 微档是一个安全、开源的桌面工具，帮微信公众号作者把自己账号下已经发布过的文章导出成本地、开放、由自己保管的归档（Markdown、Word、本地图片）。无遥测、无上传、本地优先。
+
+## 关于
+
+- 只导出当前登录账号本人的文章，不采集其他公众号的内容，不做大规模抓取。
+- 数据不经过任何开发者的服务器：本地直连微信公众号后台，本地写文件。
+- macOS 桌面应用，Developer ID 签名并通过 Apple 公证，下载后可直接运行。
+- MIT 协议开源，免费使用。
+- 与微信、腾讯没有隶属、合作、授权或认可关系，是独立开发的非官方项目。
+- 作者：张英锋。
+
+## 链接
+
+- [官网](https://yingfeng.ca/wei-dang)
+- [GitHub 仓库](https://github.com/zhangyingfeng/wei-dang)
+- [下载最新版本](https://github.com/zhangyingfeng/wei-dang/releases/latest)
+- [设计文档](https://github.com/zhangyingfeng/wei-dang/blob/main/docs/DESIGN.md)
+- [隐私说明](https://github.com/zhangyingfeng/wei-dang/blob/main/docs/PRIVACY.md)
+- [免责声明](https://github.com/zhangyingfeng/wei-dang/blob/main/docs/DISCLAIMER.md)
+
+## 相关项目
+
+- [知档](https://yingfeng.ca/zhi-dang) —— 同一作者开发的姊妹项目，用于把知乎的回答和文章归档到本地，功能更成熟（已发布到 1.x），提供登录版和密钥版两种选择。

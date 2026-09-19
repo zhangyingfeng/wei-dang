@@ -12,6 +12,7 @@
 | `assets/app-icon.png` | 从 `../src-tauri/icons/128x128@2x.png` 复制 |
 | `robots.txt` | 允许全部抓取，指向 `sitemap.xml` |
 | `sitemap.xml` | 只有首页这一条 URL，用的是 canonical 地址 `yingfeng.ca/wei-dang` |
+| `llms.txt` | 给大模型看的精简摘要（[llmstxt.org](https://llmstxt.org) 约定），不是给人看的页面 |
 | `wrangler.jsonc` | Cloudflare Workers 静态资源托管配置（assets-only，无 Worker 脚本） |
 | `.assetsignore` | 把配置文件本身排除在上传的静态资源之外 |
 
