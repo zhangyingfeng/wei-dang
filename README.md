@@ -21,9 +21,9 @@
 
 这是独立开发的非官方项目，与微信/腾讯不存在隶属、合作、授权或认可关系。
 
-## 目前的状态：核心功能已跑通，发布前还差最后一点整理
+## 目前的状态：0.1.0 已发布
 
-微档已经用一个真实公众号账号完整跑通过一次"扫码登录 → 导出到本地文件"：登录窗口、token 捕获、接口 relay、列表/正文抓取、Markdown/Word 落盘、断点续传都验证过。`npm run tauri build` 能产出一个不依赖 `npm run dev` 独立运行、真实 Developer ID 签名并通过 Apple 公证的 `.app`——用模拟真实下载的方式测过，不会弹 Gatekeeper 警告。还没做的：真的触发过一次验证码/风控；正式发布前的清单整理（仓库可见性、版本号等）。技术方案的选择理由、已验证和未验证的细节，写在 [docs/DESIGN.md](docs/DESIGN.md) 里。
+微档已经用一个真实公众号账号完整跑通过一次"扫码登录 → 导出到本地文件"：登录窗口、token 捕获、接口 relay、列表/正文抓取、Markdown/Word 落盘、断点续传都验证过。[v0.1.0](https://github.com/zhangyingfeng/wei-dang/releases/tag/v0.1.0) 是一个不依赖 `npm run dev` 独立运行、真实 Developer ID 签名并通过 Apple 公证的 `.app`——用模拟真实下载的方式测过，不会弹 Gatekeeper 警告，可以直接下载安装。还没做的：真的触发过一次验证码/风控。技术方案的选择理由、已验证和未验证的细节，写在 [docs/DESIGN.md](docs/DESIGN.md) 里。
 
 ## 和知档的关系
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "微档：微信公众号作者归档工具（能跑通端到端，还没正式发布）",
+  "description": "微档：微信公众号作者归档工具",
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json && cp -R public dist/public",
