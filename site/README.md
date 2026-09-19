@@ -66,8 +66,16 @@ Cloudflare Dashboard → Workers & Pages → **Create application** → **Import
 
 ## 更新图标
 
+`src-tauri/icons/*` 是按 Apple 规范留了安全边距的 macOS 应用图标（Dock/Finder 用），
+直接复制到网页上会因为这圈透明边距显得比实际小一圈。网页用的图标要从 1024 主图裁掉
+透明边距再缩放：
+
 ```bash
-cp src-tauri/icons/128x128@2x.png site/assets/app-icon.png
+python3 -c "
+from PIL import Image
+im = Image.open('assets/app-icon-source.png')
+im.crop(im.getbbox()).resize((256, 256), Image.LANCZOS).save('site/assets/app-icon.png')
+"
 ```
 
 文案改动时，与 `README.md` / `docs/PRIVACY.md` / `docs/DESIGN.md` 保持一致。
