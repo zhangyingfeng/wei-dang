@@ -56,6 +56,7 @@
     --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 30px rgba(0,0,0,.06);
     --icon-shadow: 0 2px 4px rgba(20,22,25,.08), 0 8px 16px rgba(20,22,25,.14);
     --icon-shadow-sm: 0 1px 1px rgba(20,22,25,.10), 0 2px 4px rgba(20,22,25,.14);
+    --icon-drop-shadow: drop-shadow(0 2px 4px rgba(20,22,25,.08)) drop-shadow(0 8px 16px rgba(20,22,25,.14));
     --radius: 14px;
     --maxw: 880px;
     --ok: #1a8a4a;
@@ -75,6 +76,7 @@
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 40px rgba(0,0,0,.35);
       --icon-shadow: 0 2px 6px rgba(0,0,0,.35), 0 10px 20px rgba(0,0,0,.5);
       --icon-shadow-sm: 0 1px 2px rgba(0,0,0,.4), 0 2px 5px rgba(0,0,0,.5);
+      --icon-drop-shadow: drop-shadow(0 2px 6px rgba(0,0,0,.35)) drop-shadow(0 10px 20px rgba(0,0,0,.5));
       --ok: #43c17a;
     }
   }
@@ -99,7 +101,7 @@
   .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
   .brand{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--text)}
   .brand:hover{text-decoration:none}
-  .brand .mark{width:24px;height:24px;border-radius:6px;display:block}
+  .brand .mark{width:24px;height:24px;display:block}
   .nav nav{display:flex;gap:20px;font-size:14px}
   .nav nav a{color:var(--muted)}
 
@@ -110,7 +112,7 @@
   .hero .sub{font-size:16px;color:var(--muted);max-width:52ch;margin:0 auto 28px}
   .cta{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
   .cta-item{display:flex;flex-direction:column;align-items:center;gap:14px}
-  .hero-icon{width:128px;height:128px;border-radius:23px;display:block;box-shadow:var(--icon-shadow)}
+  .hero-icon{width:128px;height:128px;display:block;filter:var(--icon-drop-shadow)}
   .btn{
     display:inline-flex;align-items:center;justify-content:center;gap:8px;
     min-width:180px;padding:11px 20px;border-radius:10px;font-size:15px;font-weight:600;
