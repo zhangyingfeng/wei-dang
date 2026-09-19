@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers static-asset hosting for the 微档 landing page.
+  // Deployed from this repo via Workers Builds with root directory = "site".
+  // Assets-only: there is no Worker script. See site/README.md.
+  "name": "wei-dang-site",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./"
+  }
+}

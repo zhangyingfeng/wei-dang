@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>微档 — 微信公众号作者归档</title>
+<meta name="description" content="微档是一个安全、开源的桌面工具，帮公众号作者把自己账号下已经发布过的文章导出成本地、开放、由自己保管的归档（Markdown、Word、本地图片）。无遥测、无上传、本地优先。">
+<link rel="icon" href="assets/app-icon.png">
+<meta property="og:title" content="微档 — 微信公众号作者归档">
+<meta property="og:description" content="把你的公众号文章，导出成本地、开放、由你自己保管的归档。无遥测、无上传、本地优先。">
+<meta property="og:image" content="assets/app-icon.png">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    color-scheme: light dark;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --brand: #0aa860;
+    --brand-text: #0aa860;
+    --bg: #ffffff;
+    --surface: #f6f7f8;
+    --surface-2: #eef0f2;
+    --text: #1b1c1e;
+    --muted: #61656c;
+    --faint: #8a8f97;
+    --border: rgba(20,22,25,.12);
+    --border-soft: rgba(20,22,25,.08);
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 30px rgba(0,0,0,.06);
+    --icon-shadow: 0 2px 4px rgba(20,22,25,.08), 0 8px 16px rgba(20,22,25,.14);
+    --icon-shadow-sm: 0 1px 1px rgba(20,22,25,.10), 0 2px 4px rgba(20,22,25,.14);
+    --radius: 14px;
+    --maxw: 880px;
+    --ok: #1a8a4a;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --brand: #2fd47f;
+      --brand-text: #57e097;
+      --bg: #191a1b;
+      --surface: #212325;
+      --surface-2: #2a2c2f;
+      --text: #eef0f2;
+      --muted: #a3a8b0;
+      --faint: #7b8088;
+      --border: rgba(255,255,255,.14);
+      --border-soft: rgba(255,255,255,.08);
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 40px rgba(0,0,0,.35);
+      --icon-shadow: 0 2px 6px rgba(0,0,0,.35), 0 10px 20px rgba(0,0,0,.5);
+      --icon-shadow-sm: 0 1px 2px rgba(0,0,0,.4), 0 2px 5px rgba(0,0,0,.5);
+      --ok: #43c17a;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:var(--font);font-size:16px;line-height:1.6;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  }
+  a{color:var(--brand-text);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{width:min(var(--maxw),calc(100% - 40px));margin:0 auto}
+
+  /* nav */
+  header.nav{
+    position:sticky;top:0;z-index:20;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:saturate(1.4) blur(10px);
+    border-bottom:1px solid var(--border-soft);
+  }
+  .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--text)}
+  .brand:hover{text-decoration:none}
+  .brand .mark{width:24px;height:24px;border-radius:6px;display:block}
+  .nav nav{display:flex;gap:20px;font-size:14px}
+  .nav nav a{color:var(--muted)}
+
+  /* hero */
+  .hero{text-align:center;padding:72px 0 8px}
+  .hero h1{font-size:40px;line-height:1.15;margin:0 0 14px;letter-spacing:-.01em}
+  .hero .lede{font-size:20px;color:var(--text);max-width:34ch;margin:0 auto 10px}
+  .hero .sub{font-size:16px;color:var(--muted);max-width:52ch;margin:0 auto 28px}
+  .cta{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+  .cta-item{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .hero-icon{width:60px;height:60px;border-radius:14px;display:block;box-shadow:var(--icon-shadow)}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    min-width:180px;padding:11px 20px;border-radius:10px;font-size:15px;font-weight:600;
+    border:1px solid transparent;cursor:pointer;transition:filter .12s,background .12s;
+  }
+  .btn-primary{background:var(--brand);color:#fff}
+  .btn-primary:hover{filter:brightness(1.08);text-decoration:none}
+  .hero .meta{font-size:13px;color:var(--faint)}
+  .hero .meta a{color:var(--faint);text-decoration:underline}
+
+  /* sections */
+  section{padding:56px 0;border-top:1px solid var(--border-soft)}
+  section:first-of-type{border-top:0}
+  h2{font-size:26px;margin:0 0 8px;letter-spacing:-.01em}
+  .section-intro{color:var(--muted);max-width:56ch;margin:0 0 28px}
+  p.lead{font-size:17px;color:var(--text)}
+
+  .quote{
+    border-left:3px solid var(--brand);padding:2px 0 2px 18px;
+    color:var(--text);font-size:17px;margin:20px 0 0;
+  }
+
+  /* format badges + tree */
+  .formats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+  .chip{
+    font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;
+    background:var(--surface);border:1px solid var(--border);color:var(--text);
+  }
+  pre.tree{
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;
+    padding:18px 20px;overflow-x:auto;font-size:13.5px;line-height:1.7;
+    font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    color:var(--text);margin:0;
+  }
+  pre.tree .c{color:var(--faint)}
+
+  /* steps */
+  .steps{display:grid;gap:22px}
+  @media(min-width:720px){.steps{grid-template-columns:repeat(3,1fr)}}
+  .step{
+    background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);
+    overflow:hidden;display:flex;flex-direction:column;
+  }
+  .step .body{padding:18px 20px}
+  .step .n{
+    display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;
+    background:var(--brand);color:#fff;font-size:12px;font-weight:700;margin-bottom:8px;
+  }
+  .step h3{margin:0 0 4px;font-size:16px}
+  .step p{margin:0;font-size:14px;color:var(--muted)}
+
+  /* principle grid */
+  .grid2{display:grid;gap:16px}
+  @media(min-width:640px){.grid2{grid-template-columns:1fr 1fr}}
+  .card{
+    background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);
+    padding:20px;
+  }
+  .card h3{margin:0 0 6px;font-size:16px}
+  .card p{margin:0;font-size:14.5px;color:var(--muted)}
+
+  /* privacy */
+  .privacy{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px 24px}
+  .privacy ul{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:12px}
+  .privacy li{padding-left:26px;position:relative;font-size:15px;color:var(--text)}
+  .privacy li::before{
+    content:"";position:absolute;left:0;top:8px;width:12px;height:12px;border-radius:4px;
+    background:var(--brand);
+  }
+
+  /* boundary compare */
+  .cmp-wrap{overflow-x:auto;border:1px solid var(--border-soft);border-radius:var(--radius)}
+  table.cmp{width:100%;border-collapse:collapse;font-size:14px}
+  table.cmp th,table.cmp td{padding:12px 16px;text-align:left;vertical-align:top}
+  table.cmp thead th{
+    font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;
+    border-bottom:1px solid var(--border);background:var(--surface);
+  }
+  table.cmp tbody td{border-bottom:1px solid var(--border-soft);color:var(--muted)}
+  table.cmp tbody tr:last-child td{border-bottom:0}
+  table.cmp tbody td:first-child{color:var(--text)}
+  table.cmp-safe tbody td:last-child{color:var(--ok);font-weight:600}
+
+  /* roadmap */
+  .road{display:grid;gap:12px}
+  .road .row{
+    display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;
+    padding:14px 0;border-top:1px solid var(--border-soft);
+  }
+  .road .row:first-child{border-top:0}
+  .road .tag{
+    font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px;white-space:nowrap;
+    background:var(--surface-2);color:var(--muted);
+  }
+  .road .row p{margin:0;font-size:14.5px;color:var(--muted)}
+  .road .row strong{color:var(--text);font-weight:600}
+
+  /* footer */
+  footer{border-top:1px solid var(--border-soft);padding:40px 0 60px;color:var(--muted);font-size:13.5px}
+  footer .cols{display:flex;flex-wrap:wrap;gap:10px 26px;margin-bottom:18px}
+  footer a{color:var(--muted);text-decoration:underline}
+  footer .fine{color:var(--faint);font-size:12.5px;line-height:1.7;max-width:60ch}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img class="mark" src="assets/app-icon.png" alt="">
+      微档
+    </a>
+    <nav>
+      <a href="#scope">不是爬虫</a>
+      <a href="#how">怎么用</a>
+      <a href="#privacy">隐私</a>
+      <a href="https://github.com/zhangyingfeng/wei-dang">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <div class="wrap">
+    <div class="hero">
+      <h1>微档</h1>
+      <p class="lede">本地归档你的微信公众号文章</p>
+      <p class="sub">「微档」即微信公众号作者归档。一个安全、开源的内容导出工具，帮公众号作者把自己账号下已经发布过的文章导出为 Markdown、Word 和本地图片。</p>
+      <div class="cta">
+        <div class="cta-item">
+          <img class="hero-icon" src="assets/app-icon.png" alt="微档图标">
+          <a class="btn btn-primary" id="download" href="https://github.com/zhangyingfeng/wei-dang/releases/latest">
+            下载微档
+          </a>
+        </div>
+      </div>
+      <p class="meta">
+        <a href="https://github.com/zhangyingfeng/wei-dang">在 GitHub 查看源码</a>
+      </p>
+      <p class="meta">
+        <span id="version">版本与更新记录见 GitHub Releases</span> · 仅 macOS Apple Silicon ·
+        已通过 Apple 签名与公证，下载后可直接打开
+      </p>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <section id="why">
+      <h2>从一个很具体的问题开始</h2>
+      <p class="lead">公众号作者在长期创作之后，如何把自己的作品完整、安全地保存下来，并继续由自己控制。</p>
+      <p class="quote">微档的回答是：把作者自己的公众号创作，转换成开放、可读、可迁移、由作者自己保管的本地归档。</p>
+    </section>
+
+    <section id="scope">
+      <h2>微档不是爬虫，是用户授权的归档工具</h2>
+      <p class="section-intro">微档不采集别人的公众号内容，也不做大规模抓取——它只在你本人登录自己的公众号后台之后，把<strong>你自己</strong>账号下已经发布的文章搬到<strong>你自己</strong>的电脑上。没有你的登录、没有你的操作，微档什么也拿不到。拿大规模采集工具做对比，一眼就能看清楚：</p>
+
+      <div class="cmp-wrap">
+        <table class="cmp cmp-safe">
+          <thead>
+            <tr><th>问题</th><th>大规模采集工具</th><th>微档</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>抓别的公众号发布的内容</td><td>可能大量采集</td><td>不支持——只导出当前登录账号本人的文章</td></tr>
+            <tr><td>聚合多个公众号的数据</td><td>常见</td><td>否——每次只处理你自己这一个账号</td></tr>
+            <tr><td>绕开微信官方的验证码/风控</td><td>可能</td><td>不做——遇到验证码交给你本人处理</td></tr>
+            <tr><td>数据经过开发者的服务器</td><td>可能</td><td>不经过——本地直连微信后台，本地写文件</td></tr>
+            <tr><td>代理池 / 账号池</td><td>可能使用</td><td>不使用</td></tr>
+            <tr><td>保存位置</td><td>可能进入第三方数据库</td><td>你自己电脑上的文件夹</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="section-intro" style="margin-top:16px">
+        一句话总结：微档只做"帮你把自己的账号搬到自己的硬盘"这一件事，任何会让它变成内容聚合服务、大规模采集工具或访问控制绕过工具的能力，都不属于微档的产品范围。
+      </p>
+
+      <p class="section-intro" style="margin-top:18px">
+        这是独立开发的非官方项目，与微信/腾讯不存在隶属、合作、授权或认可关系。
+      </p>
+
+      <p class="section-intro" style="margin-top:18px">
+        目前只在 macOS（Apple Silicon）上完整测试，已通过 Apple Developer ID 签名与公证。详见
+        <a href="https://github.com/zhangyingfeng/wei-dang/blob/main/docs/DISCLAIMER.md">免责声明</a> ·
+        <a href="https://github.com/zhangyingfeng/wei-dang/blob/main/docs/ACCEPTABLE_USE.md">可接受使用</a>。
+      </p>
+    </section>
+
+    <section id="output">
+      <h2>你会得到什么</h2>
+      <p class="section-intro">导出结果是一个普通的本地文件夹，可以直接读、备份、迁移到自有网站。<code>index.json</code> 和 Markdown 被当作长期数据格式来维护。</p>
+      <div class="formats">
+        <span class="chip">Markdown 正文</span>
+        <span class="chip">Word 文档</span>
+        <span class="chip">index.json 索引</span>
+        <span class="chip">export-report.json 报告</span>
+        <span class="chip">本地化图片</span>
+      </div>
+      <pre class="tree">导出目录/
+├── articles/           <span class="c"># 每篇文章一个 Markdown 文件</span>
+├── word/               <span class="c"># 每篇文章对应的 Word 文档</span>
+├── images/             <span class="c"># 正文里的图片，全部下载到本地</span>
+├── index.json          <span class="c"># 全部内容的结构化索引</span>
+├── export-report.json  <span class="c"># 总数 / 失败 / 跳过 / 已删除的完整报告</span>
+└── README.md           <span class="c"># 这份导出的说明</span></pre>
+      <p class="section-intro" style="margin-top:22px">
+        每个条目保留原文链接、创建与更新时间、封面等元数据。文章被作者本人删除时会被识别并标记，不会反复重试；中途退出或失败，指向同一个目录再次导出会跳过已经完成的部分。
+      </p>
+    </section>
+
+    <section id="how">
+      <h2>怎么用</h2>
+      <p class="section-intro">独立桌面应用，不需要安装 Node.js、Chrome 或任何开发工具。</p>
+      <div class="steps">
+        <div class="step">
+          <div class="body">
+            <span class="n">1</span>
+            <h3>下载并打开</h3>
+            <p>从 GitHub Releases 下载 <code>.dmg</code>，拖进「应用程序」打开。打开后直接是导出设置界面。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="body">
+            <span class="n">2</span>
+            <h3>登录公众号后台</h3>
+            <p>点「开始登录」，在弹出的独立窗口里用手机扫码登录你自己的公众号后台。登录信息只留在本机。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="body">
+            <span class="n">3</span>
+            <h3>选目录，导出</h3>
+            <p>确认保存位置，点「开始导出」。每一项的进度都能看到，可以随时暂停、跳过某一项；完成后显示汇总，并可一键在访达中打开结果。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="principles">
+      <h2>设计原则</h2>
+      <p class="section-intro">正因为微档的定位是「用户授权的归档工具」，无论它发展到什么程度，都保持以下原则。</p>
+      <div class="grid2">
+        <div class="card">
+          <h3>平台独立</h3>
+          <p>微信公众号是当前的内容来源，但数据模型不永远绑定于某个平台的页面结构。</p>
+        </div>
+        <div class="card">
+          <h3>本地优先</h3>
+          <p>作者应能取得自己的完整数据，并能在没有任何云服务的情况下继续使用。</p>
+        </div>
+        <div class="card">
+          <h3>安全隐私</h3>
+          <p>登录信息、Cookie 和导出内容默认只保存在本机，不自动上传；不加入遥测、远程日志或用户内容上传。</p>
+        </div>
+        <div class="card">
+          <h3>开放格式</h3>
+          <p>内容和元数据优先采用公开、可迁移的格式，不制造新的平台锁定。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="privacy">
+      <h2>隐私</h2>
+      <p class="section-intro">这是微档最在意的一层，也是它和「一键搬运」类工具的根本区别。</p>
+      <div class="privacy">
+        <ul>
+          <li>应用在你自己的电脑上运行，本地服务只监听 <code>127.0.0.1</code>。</li>
+          <li>在应用内置的登录窗口里直接登录公众号后台，不需要在表单、终端或配置文件里填密码或 Cookie。</li>
+          <li>登录会话由系统自带的 WebView 管理（macOS 上是 WKWebView），本应用的后端服务不接触、不读取——真正代表身份的只有从地址栏捕获的 token。</li>
+          <li>文章和图片只写入你指定的本地目录。</li>
+          <li>不包含遥测、分析、广告、远程日志或开发者服务器上传。</li>
+          <li>点「退出登录」即可清除会话；删除导出目录即可清除导出内容。</li>
+        </ul>
+      </div>
+      <p class="section-intro" style="margin-top:18px">
+        详见 <a href="https://github.com/zhangyingfeng/wei-dang/blob/main/docs/PRIVACY.md">隐私说明</a>。
+      </p>
+    </section>
+
+    <section id="roadmap">
+      <h2>路线图</h2>
+      <p class="section-intro">记录方向和优先级，不代表功能已完成，也不构成发布时间承诺。</p>
+      <div class="road">
+        <div class="row">
+          <span class="tag">已完成</span>
+          <p><strong>核心导出流程</strong>：登录窗口 + token 捕获、列表/正文抓取、图片本地化、Markdown/Word 落盘，用真实公众号账号完整验证过。</p>
+        </div>
+        <div class="row">
+          <span class="tag">已完成</span>
+          <p><strong>断点续传 + 已删除识别</strong>：中断或失败后再次导出会跳过已完成的项；文章被作者删除会被识别并标记，不会反复重试。</p>
+        </div>
+        <div class="row">
+          <span class="tag">已完成</span>
+          <p><strong>Apple 签名 + 公证</strong>：已用 Developer ID 证书签名并通过公证，下载后可直接打开，不再有 Gatekeeper 警告。</p>
+        </div>
+        <div class="row">
+          <span class="tag">规划中</span>
+          <p><strong>验证码 / 风控识别</strong>：目前的识别逻辑还没有被真实场景验证过，撞上时会给出清晰提示而不是静默失败。</p>
+        </div>
+      </div>
+      <p class="section-intro" style="margin-top:18px">
+        完整设计文档见 <a href="https://github.com/zhangyingfeng/wei-dang/blob/main/docs/DESIGN.md">DESIGN.md</a>。
+      </p>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <a href="https://github.com/zhangyingfeng/wei-dang">源码仓库</a>
+      <a href="https://github.com/zhangyingfeng/wei-dang/releases">下载 / 更新记录</a>
+      <a href="https://github.com/zhangyingfeng/wei-dang/blob/main/docs/DISCLAIMER.md">免责声明</a>
+      <a href="https://github.com/zhangyingfeng/wei-dang/blob/main/docs/ACCEPTABLE_USE.md">可接受使用</a>
+      <a href="https://github.com/zhangyingfeng/wei-dang/blob/main/docs/PRIVACY.md">隐私说明</a>
+    </div>
+    <p class="fine">
+      微档是独立开发的非官方工具，与微信/腾讯不存在隶属、合作、授权或认可关系。「微信」及相关标识属于其相应权利人。
+      本项目使用 MIT 协议开源。软件按现状提供，不附带任何明示或默示担保。
+      使用者有责任遵守适用法律、著作权规则和平台条款。
+    </p>
+  </div>
+</footer>
+
+<script>
+  // No analytics, no third-party scripts. One optional call to GitHub's public
+  // API to resolve the latest release's version + the .dmg download URL; on
+  // any failure the static link above (pointing at releases/latest) is
+  // already a reasonable fallback.
+  (function () {
+    var REPO = "zhangyingfeng/wei-dang";
+    fetch("https://api.github.com/repos/" + REPO + "/releases/latest", {
+      headers: { Accept: "application/vnd.github+json" }
+    })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function (rel) {
+        if (rel.tag_name) {
+          document.getElementById("version").textContent = "当前 " + rel.tag_name.replace(/^v/, "");
+        }
+        var assets = rel.assets || [];
+        var dmg = assets.find(function (a) { return /\.dmg$/i.test(a.name); });
+        if (dmg && dmg.browser_download_url) {
+          document.getElementById("download").href = dmg.browser_download_url;
+        }
+      })
+      .catch(function () { /* keep static fallback */ });
+  })();
+</script>
+
+</body>
+</html>
