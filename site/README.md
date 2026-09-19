@@ -41,11 +41,21 @@ Cloudflare Dashboard → Workers & Pages → **Create application** → **Import
 | 非生产分支部署命令 | `npx wrangler versions upload`（默认，保留） |
 
 首次部署后，进这个 Worker → **Settings → Domains & Routes → Add → Custom domain**
-→ 选一个子域名（知档用的是 `zhi-dang.yingfeng.ca`，微档可以对应用 `wei-dang.yingfeng.ca`）。
+→ `wei-dang.yingfeng.ca`（和知档的 `zhi-dang.yingfeng.ca` 对应）。
 DNS 在 Cloudflare，会自动建 CNAME 并签证书。
 
 之后每次 push 到 `main` 自动重新部署。本地用 `npx wrangler dev` 或上面的
 `http.server` 预览。
+
+### 可选：让 `yingfeng.ca/wei-dang` 也能进
+
+`yingfeng.ca` zone → **Rules → Redirect Rules → Create**：
+
+- 匹配：`(http.host eq "yingfeng.ca" and starts_with(http.request.uri.path, "/wei-dang"))`
+- 动态重定向到：`concat("https://wei-dang.yingfeng.ca", substring(http.request.uri.path, 9))`
+- 301，保留查询字符串
+
+`substring` 的偏移量 9 不用跟着改——`/wei-dang` 和 `/zhi-dang` 长度刚好一样，跟知档那条规则的写法完全对应，只是换了路径和目标域名。
 
 ## 更新图标
 
