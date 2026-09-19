@@ -8,8 +8,10 @@
 
 | 文件 | 说明 |
 |---|---|
-| `index.html` | 单页，内联 CSS + 一小段 JS，无构建步骤，无第三方脚本，无统计代码 |
+| `index.html` | 单页，内联 CSS + 一小段 JS，无构建步骤，无第三方脚本，无统计代码；`<head>` 里有 canonical/OG/Twitter 卡片/JSON-LD，全部指向 `yingfeng.ca/wei-dang` |
 | `assets/app-icon.png` | 从 `../src-tauri/icons/128x128@2x.png` 复制 |
+| `robots.txt` | 允许全部抓取，指向 `sitemap.xml` |
+| `sitemap.xml` | 只有首页这一条 URL，用的是 canonical 地址 `yingfeng.ca/wei-dang` |
 | `wrangler.jsonc` | Cloudflare Workers 静态资源托管配置（assets-only，无 Worker 脚本） |
 | `.assetsignore` | 把配置文件本身排除在上传的静态资源之外 |
 
